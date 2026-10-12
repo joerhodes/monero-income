@@ -92,8 +92,7 @@ and keeping configuration in one place prevents drift.
 
 - **Runtime**: Python 3.13 or newer.
 - **Tooling**: the project MUST be managed with uv.
-- **Local-first**: the only external dependency at runtime is the price API. The wallet RPC
-  and database are local.
+- **Local-first**: the only external dependency at runtime is the price API. The wallet RPC is self-hosted by the user and reached at a URL they configure; the database is local.
 - **Private data**: real wallet data and database snapshots MUST NOT be committed to the
   repository. Test fixtures MUST be synthetic.
 
@@ -118,4 +117,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-12
+**Version**: 1.1.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-12
