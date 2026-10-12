@@ -19,11 +19,28 @@ reported to the user, and the application exits. Recorded transactions persist l
 between runs. Each recorded transaction keeps its transaction id, block height, XMR amount at
 full precision, and the exact moment it occurred, independent of time zone."
 
+## Clarifications
+
+### Session 2026-10-12
+
+- Q: How many confirmations should an incoming transaction have before sync records it? → A:
+  One. A transaction is recorded once it is included in a block; no additional
+  confirmations are required.
+- Q: When one transaction pays the wallet more than once (for example, to several
+  subaddresses), should sync store one record or one per subaddress? → A: One record per
+  transaction, with the total amount received across all subaddresses.
+- Q: Should sync be a command the user runs on its own, or a step that runs automatically at
+  the start of the later report commands? → A: Automatic only. Sync always runs as the first
+  step of every run of the tool; there is no separate sync command.
+- Q: Where can the wallet the tool connects to be running, and does the tool need to support a
+  wallet that requires a username and password? → A: Any host the user specifies, including
+  other machines, with optional username/password login.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Record incoming transactions from the wallet (Priority: P1)
 
-A miner runs a sync. The tool reads the wallet's incoming transactions and records each one
+A miner runs the tool, which always begins with a sync. The sync reads the wallet's incoming transactions and records each one
 locally with its transaction id, block height, exact XMR amount, and the moment it occurred.
 Outgoing transactions are ignored. The records remain available after the tool exits, ready
 for later pricing and reporting features.
@@ -32,16 +49,16 @@ for later pricing and reporting features.
 accurate local record of incoming transactions. Without this, the tool does nothing useful.
 
 **Independent Test**: Point the tool at a wallet containing a known mix of incoming and
-outgoing transactions, run a sync, and confirm the local records contain exactly the incoming
+outgoing transactions, run the tool, and confirm the local records contain exactly the incoming
 ones with matching ids, heights, amounts, and times.
 
 **Acceptance Scenarios**:
 
 1. **Given** a wallet with incoming transactions and no local records, **When** the user runs
-   a sync, **Then** every confirmed incoming transaction is recorded with its transaction id,
+   the tool, **Then** every confirmed incoming transaction is recorded with its transaction id,
    block height, full-precision XMR amount, and time-zone-independent timestamp.
-2. **Given** a wallet with both incoming and outgoing transactions, **When** the user runs a
-   sync, **Then** only the incoming transactions are recorded.
+2. **Given** a wallet with both incoming and outgoing transactions, **When** the user runs the
+   tool, **Then** only the incoming transactions are recorded.
 3. **Given** a completed sync, **When** the tool is run again later, **Then** the previously
    recorded transactions are still present and unchanged.
 4. **Given** an incoming transaction whose amount uses the wallet's full precision (12 decimal
@@ -52,24 +69,24 @@ ones with matching ids, heights, amounts, and times.
 
 ### User Story 2 - Re-sync safely and incrementally (Priority: P2)
 
-A miner runs sync regularly (for example, daily). Each run adds only transactions that
+A miner runs the tool regularly (for example, daily). Each run's sync adds only transactions that
 arrived since the last run. If nothing new has arrived, the tool says so and nothing in the
 local records changes.
 
 **Why this priority**: Sync is a repeated operation. It must be safe to run any number of
 times without creating duplicates or altering existing records.
 
-**Independent Test**: Run a sync, then run it again with no wallet changes and confirm the
+**Independent Test**: Run the tool, then run it again with no wallet changes and confirm the
 records are identical and a "no new transactions" message appears; then add a new incoming
 transaction to the wallet, sync, and confirm only that one is added.
 
 **Acceptance Scenarios**:
 
 1. **Given** all of the wallet's incoming transactions are already recorded, **When** the user
-   runs a sync, **Then** the local records are unchanged and a message tells the user that no
+   runs the tool, **Then** the local records are unchanged and a message tells the user that no
    new transactions were found.
 2. **Given** some incoming transactions are recorded and new ones have since arrived, **When**
-   the user runs a sync, **Then** only the new transactions are added and existing records are
+   the user runs the tool, **Then** only the new transactions are added and existing records are
    unchanged.
 3. **Given** no new transactions were found, **When** the message has been displayed, **Then**
    the run continues to completion rather than stopping as an error.
@@ -93,9 +110,9 @@ intact, and a subsequent successful sync produces the same records as an uninter
 **Acceptance Scenarios**:
 
 1. **Given** a sync that is interrupted after recording some transactions, **When** the user
-   runs sync again, **Then** the previously recorded transactions are kept and the remaining
+   runs the tool again, **Then** the previously recorded transactions are kept and the remaining
    incoming transactions are recorded, with no duplicates.
-2. **Given** the wallet cannot be reached, **When** the user runs a sync, **Then** an error
+2. **Given** the wallet cannot be reached, **When** the user runs the tool, **Then** an error
    message describing the problem is shown, the tool exits with a failure status, and existing
    records are unchanged.
 3. **Given** any error during sync, **When** the tool exits, **Then** the local records are in
@@ -117,6 +134,10 @@ intact, and a subsequent successful sync produces the same records as an uninter
   or deleted.
 - **Empty wallet** (no incoming transactions at all): treated the same as "no new
   transactions found".
+- **Wallet login rejected** (wrong or missing username/password): reported as an error that
+  identifies the login as the problem; the tool exits without changing existing records.
+- **Wallet host unreachable or not responding** (wrong host, machine offline, wallet not
+  running): reported as an error that names the host the tool tried to reach.
 - **Local records unreadable or damaged**: reported as an error; the tool exits without
   modifying or replacing the existing records.
 - **Very large history** (thousands of incoming transactions on first sync): all are recorded
@@ -126,13 +147,17 @@ intact, and a subsequent successful sync produces the same records as an uninter
 
 ### Functional Requirements
 
-- **FR-001**: Users MUST be able to run a sync that retrieves incoming transactions from their
-  Monero wallet.
+- **FR-001**: Every run of the tool MUST begin with a sync that retrieves incoming
+  transactions from the user's Monero wallet. There MUST NOT be a separate sync command; sync
+  runs automatically as the first step, before any later step (such as pricing or reporting,
+  delivered by later features). Until those features exist, a run consists of the sync alone.
 - **FR-002**: Sync MUST record every confirmed incoming wallet transaction that is not already
   recorded.
 - **FR-003**: Sync MUST NOT record outgoing transactions, including transfers from the wallet
   to itself.
-- **FR-004**: Sync MUST NOT record unconfirmed incoming transactions.
+- **FR-004**: Sync MUST record an incoming transaction once it is included in a block, with no
+  additional confirmations required, and MUST NOT record incoming transactions that are not
+  yet in a block.
 - **FR-005**: Each recorded transaction MUST include its transaction id, block height, XMR
   amount, and the moment it occurred.
 - **FR-006**: Recorded XMR amounts MUST be exactly equal to the amount reported by the wallet,
@@ -140,12 +165,14 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - **FR-007**: The recorded moment MUST identify a single unambiguous point in time that does
   not depend on the time zone of the machine or user.
 - **FR-008**: A transaction MUST be identified by its transaction id; a transaction id that is
-  already recorded MUST NOT be recorded again.
+  already recorded MUST NOT be recorded again. When a transaction pays the wallet more than
+  once (for example, to several subaddresses), it MUST be recorded as a single record whose
+  amount is the total the wallet received in that transaction.
 - **FR-009**: Sync MUST NOT modify or delete any existing record.
 - **FR-010**: Running sync when no new incoming transactions exist MUST leave the local records
   unchanged.
 - **FR-011**: When a sync finds no new incoming transactions, the tool MUST display a message
-  saying so and then continue the run to normal completion.
+  saying so and then continue with the rest of the run.
 - **FR-012**: When a sync records new transactions, the tool MUST tell the user how many were
   recorded.
 - **FR-013**: If a sync is interrupted, every transaction recorded before the interruption
@@ -153,8 +180,14 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - **FR-014**: A sync following an interrupted sync MUST record the remaining incoming
   transactions, so the final records match those of an uninterrupted sync.
 - **FR-015**: When any error occurs during sync, the tool MUST show the user a message
-  describing the error and exit with a failure status.
+  describing the error and exit with a failure status, without running any later step of the
+  run.
 - **FR-016**: Recorded transactions MUST persist locally between runs of the tool.
+- **FR-017**: Users MUST be able to specify the host and port of the wallet to connect to; the
+  wallet MAY run on the same machine or on another machine.
+- **FR-018**: Users MUST be able to supply an optional username and password for a wallet that
+  requires login. The tool MUST NOT display the password in any output, including error
+  messages.
 
 ### Key Entities
 
@@ -187,8 +220,9 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - "Incoming transactions" means all confirmed incoming transfers to the wallet, not only those
   that can be identified as mining payouts. The tool is intended for a wallet that receives
   mining income.
-- The user runs a Monero wallet that the tool can reach locally. How the tool is pointed at
-  the wallet (connection settings) is decided during planning.
+- The user runs a Monero wallet that the tool can reach over the network, on the same machine
+  or another one. How the connection settings and login are supplied (arguments, environment,
+  or a settings file) is decided during planning.
 - A transaction's "moment it occurred" is the timestamp the wallet reports for it, at the
   precision the wallet provides (whole seconds).
 - The tool works with one wallet. Supporting multiple wallets is out of scope.
