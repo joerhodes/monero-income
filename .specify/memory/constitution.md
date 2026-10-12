@@ -16,7 +16,7 @@ The codebase is divided into three layers:
   building).
 - **CLI**: the user-facing entry point.
 
-Dependencies MUST point inward only: the CLI only import orchestration,
+Dependencies MUST point inward only: the CLI MUST only import orchestration,
 orchestration may import primitives, and primitives MUST NOT import either outer layer.
 These rules MUST be enforced by import-linter contracts; a layering rule that has no
 contract is not considered enforced.
@@ -65,7 +65,7 @@ Rationale: tests that depend on live services are slow, flaky, and can leak wall
   stored state.
 - Sync MUST be interruption-safe: an interrupted sync leaves the database consistent and
   a subsequent run completes correctly.
-- No operation MUST delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
+- Operation MUST NOT delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
 - Schema changes MUST ship as explicit migrations, and each migration path MUST be tested
   from every prior released schema version.
 
@@ -118,4 +118,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.0.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-11
+**Version**: 1.0.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-12
