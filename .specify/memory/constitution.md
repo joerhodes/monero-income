@@ -65,7 +65,7 @@ Rationale: tests that depend on live services are slow, flaky, and can leak wall
   stored state.
 - Sync MUST be interruption-safe: an interrupted sync leaves the database consistent and
   a subsequent run completes correctly.
-- Operation MUST NOT delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
+- Operations MUST NOT delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
 - Schema changes MUST ship as explicit migrations, and each migration path MUST be tested
   from every prior released schema version.
 
@@ -117,4 +117,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.1.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-12
+**Version**: 1.1.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-14
