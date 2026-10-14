@@ -36,6 +36,24 @@ full precision, and the exact moment it occurred, independent of time zone."
   wallet that requires a username and password? → A: Any host the user specifies, including
   other machines, with optional username/password login.
 
+### Session 2026-10-13
+
+- Q: Are self transfers recorded as incoming transactions? → A: No. Self transfers are
+  excluded when retrieving incoming transactions.
+- Q: What happens on a first run when no local records exist? → A: The run creates them.
+- Q: How are errors shown to the user? → A: Every error, including invalid settings and
+  unreadable local records, is shown as a message with a failure status, never a raw
+  traceback.
+- Q: How is the wallet password supplied? → A: It can be supplied without appearing on the
+  command line. A password given without a username is an error.
+- Q: How does the user specify the wallet? → A: By its address (URL), not host and port.
+  The URL is expected to point at the same machine (127.0.0.1 or localhost).
+- Q: Can the first sync skip older transactions? → A: Yes. The first sync accepts an optional
+  start date (UTC); transactions before 00:00:00 UTC on that date are not recorded. The start
+  date is remembered and applied to every later sync, and a start date given on a later run
+  must match the remembered one or the run fails with an error.
+- Q: Which word do user-facing messages use? → A: "Transactions", never "transfers".
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Record incoming transactions from the wallet (Priority: P1)
@@ -125,21 +143,33 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - **Unconfirmed incoming transactions** (seen by the wallet but not yet in a block): not
   recorded, because they have no block height yet; they are recorded by a later sync once
   confirmed.
-- **Transfers the wallet sends to itself**: treated as outgoing and not recorded.
+- **Self transfers** (transactions the wallet sends to itself, which the wallet also reports
+  as incoming): excluded when retrieving incoming transactions, so they are never recorded.
 - **One transaction paying the wallet more than once** (for example, to multiple
   subaddresses): recorded once, with the total amount the wallet received in that
   transaction.
 - **Previously recorded transaction reported differently by the wallet** (for example, a
   different block height after a chain reorganization): the existing record is not modified
   or deleted.
+- **First run** (no local records exist yet): the tool creates the local records, then
+  records the wallet's incoming transactions as on any other sync.
+- **Start date given on the first sync**: incoming transactions that occurred before 00:00:00
+  UTC on that date are not recorded, on this run or any later run.
+- **Start date given on a later run**: accepted if it matches the start date remembered from
+  the first sync; otherwise reported as an error, and nothing is recorded or changed.
 - **Empty wallet** (no incoming transactions at all): treated the same as "no new
   transactions found".
 - **Wallet login rejected** (wrong or missing username/password): reported as an error that
   identifies the login as the problem; the tool exits without changing existing records.
-- **Wallet host unreachable or not responding** (wrong host, machine offline, wallet not
-  running): reported as an error that names the host the tool tried to reach.
+- **Password given without a username**: reported as an error; the tool does not contact the
+  wallet.
+- **Invalid settings** (for example, a malformed wallet address or start date): reported as
+  an error; nothing is recorded or changed.
+- **Wallet unreachable or not responding** (wrong address, machine offline, wallet not
+  running): reported as an error that names the wallet address the tool tried to reach.
 - **Local records unreadable or damaged**: reported as an error; the tool exits without
-  modifying or replacing the existing records.
+  modifying or replacing the existing records. Unreadable records are never treated as a
+  first run.
 - **Very large history** (thousands of incoming transactions on first sync): all are recorded
   in a single run.
 
@@ -152,9 +182,10 @@ intact, and a subsequent successful sync produces the same records as an uninter
   runs automatically as the first step, before any later step (such as pricing or reporting,
   delivered by later features). Until those features exist, a run consists of the sync alone.
 - **FR-002**: Sync MUST record every confirmed incoming wallet transaction that is not already
-  recorded.
-- **FR-003**: Sync MUST NOT record outgoing transactions, including transfers from the wallet
-  to itself.
+  recorded, except transactions before the start date when one is set (FR-020).
+- **FR-003**: Sync MUST NOT record outgoing transactions. Self transfers (transactions the
+  wallet sends to itself) MUST be excluded when retrieving incoming transactions, even though
+  the wallet also reports them as incoming.
 - **FR-004**: Sync MUST record an incoming transaction once it is included in a block, with no
   additional confirmations required, and MUST NOT record incoming transactions that are not
   yet in a block.
@@ -179,15 +210,25 @@ intact, and a subsequent successful sync produces the same records as an uninter
   MUST be kept, and no transaction MUST be left partially recorded.
 - **FR-014**: A sync following an interrupted sync MUST record the remaining incoming
   transactions, so the final records match those of an uninterrupted sync.
-- **FR-015**: When any error occurs during sync, the tool MUST show the user a message
-  describing the error and exit with a failure status, without running any later step of the
-  run.
-- **FR-016**: Recorded transactions MUST persist locally between runs of the tool.
-- **FR-017**: Users MUST be able to specify the host and port of the wallet to connect to; the
+- **FR-015**: When any error occurs during a run, including invalid settings and unreadable
+  local records, the tool MUST show the user a message describing the error and exit with a
+  failure status, without running any later step of the run. The tool MUST NOT show a raw
+  traceback for any error.
+- **FR-016**: Recorded transactions MUST persist locally between runs of the tool. When no
+  local records exist, the run MUST create them. Local records that exist but cannot be read
+  MUST NOT be recreated or replaced.
+- **FR-017**: Users MUST be able to specify the wallet to connect to by its address (URL); the
   wallet MAY run on the same machine or on another machine.
 - **FR-018**: Users MUST be able to supply an optional username and password for a wallet that
-  requires login. The tool MUST NOT display the password in any output, including error
-  messages.
+  requires login. Users MUST be able to supply the password without it appearing on the
+  command line. A password supplied without a username MUST be reported as an error. The tool
+  MUST NOT display the password in any output, including error messages.
+- **FR-019**: User-facing messages MUST refer to "transactions", never "transfers".
+- **FR-020**: On the first sync (the run that creates the local records), users MAY give an
+  optional start date, interpreted in UTC. Incoming transactions that occurred before 00:00:00
+  UTC on the start date MUST NOT be recorded. The start date MUST be remembered with the local
+  records and applied to every later sync. A start date given on a later run MUST match the
+  remembered start date; otherwise the run MUST fail with an error and change nothing.
 
 ### Key Entities
 
@@ -196,22 +237,25 @@ intact, and a subsequent successful sync produces the same records as an uninter
   XMR received by the wallet in this transaction), and occurred-at (the moment it occurred, as
   a time-zone-independent instant).
 - **Local transaction record store**: The persistent, local collection of incoming
-  transactions that survives between runs and is only ever added to by sync.
+  transactions that survives between runs and is only ever added to by sync. It is created by
+  the first run and remembers the optional start date given on the first sync.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: After a successful sync, 100% of the wallet's confirmed incoming transactions are
-  recorded and 0 outgoing transactions are recorded.
+- **SC-001**: After a successful sync, 100% of the wallet's confirmed incoming transactions on
+  or after the start date (all of them when no start date is set) are recorded, and 0
+  outgoing transactions, self transfers, or transactions before the start date are recorded.
 - **SC-002**: 100% of recorded amounts match the wallet's reported amounts exactly, to all 12
   decimal places.
 - **SC-003**: Running sync any number of times in a row with no wallet changes produces
   identical records and zero duplicates.
 - **SC-004**: For an interruption at any point during a sync, the records after one subsequent
   successful sync are identical to those produced by a single uninterrupted sync.
-- **SC-005**: 100% of failed syncs show the user an error message and end with a failure
-  status; no failed sync reports success.
+- **SC-005**: 100% of failed runs, including those caused by invalid settings or unreadable
+  local records, show the user an error message and end with a failure status; no failed run
+  reports success, and 0 show a raw traceback.
 - **SC-006**: A sync with no new transactions, for a wallet with up to 10,000 recorded
   transactions, completes in under 5 seconds, not counting time spent waiting on the wallet.
 
@@ -222,7 +266,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
   mining income.
 - The user runs a Monero wallet that the tool can reach over the network, on the same machine
   or another one. How the connection settings and login are supplied (arguments, environment,
-  or a settings file) is decided during planning.
+  or a settings file) is decided during planning, within the limits of FR-018.
 - A transaction's "moment it occurred" is the timestamp the wallet reports for it, at the
   precision the wallet provides (whole seconds).
 - The tool works with one wallet. Supporting multiple wallets is out of scope.
