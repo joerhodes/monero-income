@@ -46,7 +46,7 @@ Rules that apply to every message:
 | Code | Meaning |
 |------|---------|
 | 0 | Sync completed (including "No new transactions found.") |
-| 1 | Any error: invalid settings, config file unreadable, database unreadable or newer schema, wallet unreachable, login rejected, wallet error, invalid wallet response, or an unexpected internal error |
+| 1 | Any error: invalid settings, config file unreadable, database unreadable or newer schema, database write failed, wallet unreachable, login rejected, wallet error, invalid wallet response, or an unexpected internal error |
 | 2 | Command-line usage error (unknown option, missing option value), reported by Typer/Click without a traceback |
 | 130 | Interrupted (Ctrl-C). Height windows committed before the interruption are kept. |
 
@@ -61,10 +61,11 @@ listed here. Tests assert on the category phrase.
 | Password without username | `Error: password is set in <config path> but username is not` |
 | Config unreadable | `Error: cannot read config file <path>: <reason>` |
 | Database unreadable | `Error: cannot read database <path>: <reason>. The file was not changed.` |
+| Database write failed | `Error: cannot write to database <path>: <reason>. Transactions recorded before this error were kept.` (e.g. a second run in progress) |
 | Newer schema | `Error: database <path> was written by a newer version of monero-income (schema N)` |
 | Wallet unreachable | `Error: cannot reach the wallet at <rpc_url>: <reason>` |
 | Login rejected | `Error: the wallet at <rpc_url> rejected the login; check username and password` |
 | Wallet error | `Error: the wallet returned an error: <wallet message>` |
 | Invalid wallet response | `Error: unexpected response from the wallet: <reason>` |
-| Interrupted | `Error: interrupted; transactions recorded before the interruption were kept` |
+| Interrupted | `Error: interrupted; anything already recorded was kept` |
 | Unexpected | `Error: unexpected <ExceptionType>: <message>` |

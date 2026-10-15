@@ -25,12 +25,13 @@ All five must pass (constitution VII). `pytest-socket` fails any test that opens
 ## 2. Scenario tests (automated, via `run()` with fakes)
 
 Each acceptance scenario in `spec.md` maps to a test that calls `run()` with `FakeWalletRpc` and
-an in-memory database:
+a `tmp_path` database file. Files are needed because `run()` closes its connection, which
+would discard an in-memory database:
 
 | Scenario | Expected |
 |----------|----------|
 | US1-1 First run, wallet has incoming entries | All recorded; `Recorded N new transactions.` |
-| US1-2 Incoming + outgoing | Only incoming recorded |
+| US1-2 Incoming + outgoing | Covered at the request level: `tests/adapters/test_wallet_rpc_http.py` asserts `"out": false`, so outgoing entries are never fetched |
 | US1-4 Amount `123456789012` piconero | Stored exactly `123456789012` |
 | US2-1 Second run, no changes | Rows identical; `No new transactions found.`; exit 0 |
 | US2-2 New entry above last height | Only it added |

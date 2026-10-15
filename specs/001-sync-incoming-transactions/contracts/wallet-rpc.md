@@ -35,6 +35,9 @@ Uses `result.height` (int): the wallet's scanned chain height.
 ```
 
 - Returns entries with `LO < height <= HI` (`min_height` is exclusive).
+- No `account_index` or `all_accounts` is sent, so the wallet returns **account 0 only**. This
+  is intended: the spec's Assumptions limit the tool to account 0, where mining payouts
+  arrive.
 - Fields used from each `in` entry: `txid`, `height`, `amount`, `timestamp`.
 - An absent `in` key means an empty list. The server omits empty lists.
 

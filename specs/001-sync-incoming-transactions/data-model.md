@@ -23,7 +23,8 @@ Index: `transactions_height_idx` on `height` (finding the last recorded height).
 
 Rows are only ever inserted, never updated or deleted (FR-009, constitution VI). Inserts use
 plain `INSERT`. A primary-key conflict can only come from a concurrent run and is reported as
-a storage error. That window's insert is rolled back; windows committed earlier stay.
+a storage **write** error, distinct from the read error raised when the file can't be opened.
+That window's insert is rolled back; windows committed earlier stay.
 
 ## In-memory types
 
@@ -40,8 +41,8 @@ All are frozen dataclasses. Amounts are `int` piconero (see the constitution che
 | `timestamp` | `int` | `timestamp` |
 
 Parsing rejects (as a wallet response error) a missing field, a wrong JSON type (including a
-JSON float where an integer is expected), a negative number, or a txid that isn't 64 hex
-characters.
+JSON float where an integer is expected), a negative number, a height of 0, or a txid that
+isn't 64 hex characters.
 
 ### `TransactionRecord` (primitives): one row to store
 
@@ -81,7 +82,7 @@ Each takes plain values and returns plain values, with no I/O (constitution IV).
 | `first_window_start(last_height)` | `int \| None → int` | `None → 0`; else `max(last_height - 61, 0)` (60-block overlap, inclusive; `min_height` is exclusive) |
 | `combine_by_txid(entries)` | `→ list[TransactionRecord]` | One record per txid; amounts summed; height/timestamp from the entries (identical per txid) |
 | `select_new(records, recorded_txids)` | `→ list[TransactionRecord]` | Drop records already stored |
-| `resolve_settings(cli, file, defaults)` | `→ Settings` or error | Precedence and validation above |
+| `resolve_settings(options, raw, config_path)` | `CliOptions, RawConfig \| None, Path → tuple[Settings, list[str]]` or error | Precedence and validation above; returns the settings and any warnings |
 | `is_readable_by_others(mode)` | `int → bool` | `mode & 0o004` |
 
 ## Run lifecycle

@@ -29,7 +29,8 @@ version in `PRAGMA user_version`
 
 **Testing**: pytest, pytest-socket (`--disable-socket`), pytest-cov (coverage floor),
 `typer.testing.CliRunner` for the thin CLI only; fakes behind `typing.Protocol`; in-memory
-SQLite
+SQLite, or `tmp_path` database files for tests that call `run()` more than once or inspect the
+database afterwards (contracts/run-api.md)
 
 **Static gates**: ruff (lint + format), mypy `--strict`, import-linter
 
@@ -59,7 +60,7 @@ Checked against constitution v1.2.0.
 | II. Thin CLI | ✅ | `cli.py` maps options to `CliOptions`, calls `run()`, prints the result or error. `run()` is fully testable without Typer ([contracts/run-api.md](contracts/run-api.md)). |
 | III. Exact money | ✅ | No float anywhere. Amounts are exact `int` piconero (integer atomic units, permitted since v1.2.0) in memory and in SQLite. Conversion to XMR (`Decimal`) happens only at output, which this feature doesn't have. |
 | IV. Separate I/O from transformation | ✅ | Wallet fetch returns raw JSON; parsing, filtering, combining, windowing, and settings resolution are pure functions ([data-model.md](data-model.md)). The UTC date column is computed by SQLite, not in an I/O function. |
-| V. Testable without the network | ✅ | `WalletRpc` Protocol plus `FakeWalletRpc`; HTTP adapter tested with `httpx.MockTransport`; pytest-socket enforced. Database tests use in-memory SQLite, plus `tmp_path` files for the FR-016 file-handling rules (permitted since v1.2.0); no test reads the real config or database paths. |
+| V. Testable without the network | ✅ | `WalletRpc` Protocol plus `FakeWalletRpc`; HTTP adapter tested with `httpx.MockTransport`; pytest-socket enforced. Database tests use in-memory SQLite, plus `tmp_path` files for the FR-016 file-handling rules and for multi-run tests (permitted since v1.2.0); an autouse fixture redirects `HOME` to `tmp_path`, so no test reads the real config or database paths. |
 | VI. Data safety | ✅ | Insert-only, txid primary key, one transaction per height window (an interruption keeps completed windows), migrations keyed on `user_version`, unreadable files never recreated, newer schemas refused. |
 | VII. Automated gates | ✅ | All five gates are configured in `pyproject.toml`, with a 90% coverage floor. |
 | Constraints | ✅ | Python 3.13+/uv. Only the user's own wallet RPC at a configured URL (default `127.0.0.1`). No price API in this feature. Synthetic fixtures only. |
@@ -107,7 +108,8 @@ src/monero_income/
 └── primitives/
     ├── __init__.py
     ├── config_file.py              # read TOML → raw mapping + file mode (I/O only)
-    ├── wallet_rpc.py               # WalletRpc Protocol, HttpWalletRpc (httpx), wallet errors
+    ├── errors.py                   # all primitive errors (storage, wallet, config file)
+    ├── wallet_rpc.py               # WalletRpc Protocol, HttpWalletRpc (httpx)
     ├── wallet_entries.py           # pure: raw JSON entries → IncomingEntry
     ├── database.py                 # open_database, read position/txids, insert a window's rows
     ├── migrations.py               # schema steps keyed by user_version (0 → 1)
@@ -117,7 +119,8 @@ tests/
 ├── fakes/wallet.py                 # FakeWalletRpc (exact min/max height semantics, fault injection)
 ├── unit/                           # transform, settings, wallet_entries, migrations (in-memory)
 ├── adapters/                       # HttpWalletRpc via httpx.MockTransport; database file rules (tmp_path)
-├── integration/                    # run() end to end with fakes + in-memory SQLite (spec scenarios)
+├── conftest.py                     # autouse fixture: HOME → tmp_path
+├── integration/                    # run() end to end with fakes + tmp_path databases (spec scenarios)
 └── cli/                            # CliRunner: output lines, exit codes, no traceback, no password
 ```
 
