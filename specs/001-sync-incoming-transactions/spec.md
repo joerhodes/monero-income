@@ -39,7 +39,7 @@ full precision, and the exact moment it occurred, independent of time zone."
 ### Session 2026-10-13
 
 - Q: Are self transfers recorded as incoming transactions? → A: No. Self transfers are
-  excluded when retrieving incoming transactions.
+  excluded when retrieving incoming transactions. *(Superseded 2026-10-15; see below.)*
 - Q: What happens on a first run when no local records exist? → A: The run creates them.
 - Q: How are errors shown to the user? → A: Every error, including invalid settings and
   unreadable local records, is shown as a message with a failure status, never a raw
@@ -51,15 +51,19 @@ full precision, and the exact moment it occurred, independent of time zone."
 - Q: Can the first sync skip older transactions? → A: Yes. The first sync accepts an optional
   start date (UTC); transactions before 00:00:00 UTC on that date are not recorded. The start
   date is remembered and applied to every later sync, and a start date given on a later run
-  must match the remembered one or the run fails with an error.
+  must match the remembered one or the run fails with an error. *(Superseded 2026-10-15; see
+  below.)*
 - Q: Which word do user-facing messages use? → A: "Transactions", never "transfers".
 
 ### Session 2026-10-15
 
-- Q: Does the tool still accept an optional start date for the first sync? → A: No. The start
+- Q: Are self transfers still excluded from recorded incoming transactions? → A: No
+  (supersedes the 2026-10-13 self-transfer decision). The tool reads a view-only wallet, which
+  can't distinguish change returning to the wallet from income, so incoming transactions are
+  recorded as the wallet reports them.
+- Q: Does the tool still accept an optional start date for the first sync? → A: No; the start
   date is removed entirely (supersedes the 2026-10-13 start-date decision). The wallet's own
-  restore height already limits its history, so the tool records every incoming transaction
-  the wallet reports.
+  restore height already limits its history, so a start date is unnecessary.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -184,7 +188,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
   delivered by later features). Until those features exist, a run consists of the sync alone.
 - **FR-002**: Sync MUST record every confirmed incoming wallet transaction that is not already
   recorded.
-- **FR-003**: Sync MUST NOT record outgoing transactions. 
+- **FR-003**: Sync MUST NOT record outgoing transactions.
 - **FR-004**: Sync MUST record an incoming transaction once it is included in a block, with no
   additional confirmations required, and MUST NOT record incoming transactions that are not
   yet in a block.
@@ -239,7 +243,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
 ### Measurable Outcomes
 
 - **SC-001**: After a successful sync, 100% of the wallet's confirmed incoming transactions are
-  recorded, and 0 outgoing transactions or self transfers are recorded.
+  recorded, and 0 outgoing transactions are recorded.
 - **SC-002**: 100% of recorded amounts match the wallet's reported amounts exactly, to all 12
   decimal places.
 - **SC-003**: Running sync any number of times in a row with no wallet changes produces
@@ -270,5 +274,5 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - The tool reads a view-only wallet, which sees incoming transactions fully but cannot
   reliably see outgoing ones.
 - This is a mining wallet that is spent from rarely.  When it is spent from, change returning
-  to the walletappeats as an incoming transaction and is recorded like any other.
+  to the wallet appears as an incoming transaction and is recorded like any other.
   Distinguishing change from income is out of scope for this feature.
