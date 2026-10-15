@@ -24,41 +24,46 @@ wallet RPC that affect decided behavior. Wallet behavior was checked against the
     surface (HTTPError vs URLError vs socket errors), no typed response model, and testing
     needs monkeypatching.
 
-## R2. Avoiding timeouts on a large first sync (OPEN)
+## R2. Avoiding timeouts on a large first sync (resolved)
 
-- **Decision**: Fetch in height windows. Call `get_height` once, then call `get_transfers` with
-  `filter_by_height=true` over consecutive windows of **100,000 blocks** (about 139 days) up
-  to the wallet's height. Every request keeps the default 20-second timeout. All windows are
-  fetched before anything is written, then the new records are inserted in one database
-  transaction (as decided).
-- **Rationale**: Bounds the size of every response regardless of history length, and the same
-  mechanism serves every run, including a later run after a long gap. A full scan from height
-  0 is roughly 35–40 small requests at current chain heights; a routine later run is one
-  request.
+- **Decision**: Fetch in ascending block-height windows and commit each window in its own
+  database transaction. Call `get_height` once, then for each window `(lo, hi]` in ascending
+  order: call `get_transfers` with `filter_by_height=true`, combine and filter the entries,
+  insert the new records, and commit before requesting the next window. Every request keeps
+  the default 20-second timeout. **Window size: 10,000 blocks** (about 14 days at Monero's
+  2-minute block time).
+- **Rationale for the window size**:
+  - *Response size*: even a P2Pool miner paid in many blocks a day gets at most a few hundred
+    entries per 14-day window, a small response far inside the 20-second timeout.
+  - *Work kept on interruption*: committed windows survive, so an interrupted first sync
+    loses at most one window's progress. A smaller window keeps more.
+  - *Request count*: a first sync from height 0 at the current chain height (about 3.8
+    million) is about 380 requests. Each is a local, in-memory lookup in the wallet, and most
+    are empty, since the wallet's restore height limits its history. A routine daily run
+    (about 720 new blocks plus the 60-block overlap) is a single request.
+  - 100,000 blocks (about 139 days) would cut a first sync to about 40 requests, but each
+    response would be ten times larger and an interruption would lose up to 139 days of
+    progress. 1,000 blocks would mean about 3,800 requests for little extra safety.
+- **Interruption behavior**: windows are ascending and each commits before the next, so every
+  completed window is kept. The next run resumes from the last recorded height minus the
+  60-block overlap (R5) and re-reads at most the unfinished window plus the overlap.
+  Already-recorded txids are skipped, so the final records match an uninterrupted sync
+  (FR-013, FR-014, SC-004).
 - **Alternatives considered**:
   - A longer timeout on the first run: no bound exists that is guaranteed to be enough, and it
     doesn't help a later run after months offline.
+  - Fetching all windows, then inserting everything in one transaction (the earlier design):
+    an interrupted first sync keeps nothing.
   - Windows sized by expected transaction count: needs a count the wallet RPC doesn't expose
     cheaply; fixed block windows are simpler and predictable.
+- **Consequence**: the sync position comes only from the last recorded height. A wallet with
+  no recorded transactions yet rescans from height 0 on each run; this is correct, just not
+  minimal.
 
-## R3. Mapping the start date to the wallet's height filter (OPEN)
+## R3. Start date (removed)
 
-- **Decision**: Don't map the date to a height. Filter by timestamp after fetching: keep an
-  entry only if its `timestamp` is at or after 00:00:00 UTC on the start date. A first run with
-  a start date scans from height 0 like a first run without one (R2 keeps that cheap).
-- **Rationale**: Wallet RPC has no timestamp filter and no call that maps a date to a height.
-  Estimating a height from average block time would need hard-coded chain constants and a
-  safety margin, and it would only be an optimization; the timestamp filter is what makes the
-  result exact. The decided rule "always discard transactions before the saved start date"
-  needs this filter anyway.
-- **Alternatives considered**:
-  - Estimating height from 120-second block time plus a margin: an optimization only,
-    rejected for added constants and edge cases.
-  - Asking the daemon for block headers: adds a second runtime service, against the
-    constitution's local-first constraint.
-- **Consequence**: While no transactions are recorded (for example, a start date later than
-  any payout), each run rescans from height 0, since the later-run position comes from the
-  last recorded height. This is correct, just not minimal.
+The spec no longer has a start date (Clarifications, 2026-10-15). The wallet's restore height
+limits its history, so there is nothing to map to a height and no timestamp filter.
 
 ## R4. Self transfers (no longer researched)
 
@@ -73,7 +78,7 @@ failed=false, pool=false`) and has no self-transfer detection.
   **`min_height` is exclusive**, `max_height` is inclusive.
 - **Consequence for the decided overlap**: "from the last recorded height inclusive, minus 60
   blocks" means the first window's `min_height = max(last_height - 61, 0)`. Windows are
-  `(lo, lo + 100000]`, so consecutive windows neither overlap nor leave gaps.
+  `(lo, lo + 10000]`, so consecutive windows neither overlap nor leave gaps.
 - With `filter_by_height=false`, the server uses `min_height=0`, so a transaction at height 0
   is never returned either way. Only the genesis block is at height 0, so nothing is lost.
 
@@ -105,8 +110,9 @@ failed=false, pool=false`) and has no self-transfer detection.
 ## R7. SQLite usage details (supporting the decided storage design)
 
 - Open with `sqlite3.connect(..., autocommit=False)` (Python 3.12+), so every write runs in an
-  explicit transaction that `commit()` closes. Schema creation, `PRAGMA user_version`, and the
-  start-date row are written in one transaction, as are a sync's new records.
+  explicit transaction that `commit()` closes. Schema creation and `PRAGMA user_version` are
+  written in one transaction. Each height window's new records are written in their own
+  transaction (R2).
 - Missing vs unreadable: if the file doesn't exist, create the parent directory and open with
   URI `mode=rwc`. If it exists, open with `mode=rw` and read `PRAGMA user_version`; a
   `sqlite3.DatabaseError` ("file is not a database") becomes a storage error. An existing file

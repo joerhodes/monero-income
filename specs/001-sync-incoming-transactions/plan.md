@@ -9,10 +9,11 @@
 Every run of `monero-income` begins with a sync. The sync reads incoming transactions from a
 user-run `monero-wallet-rpc` (JSON-RPC over HTTP, optional Digest auth) and records each new
 one in a local SQLite database. Each record holds the txid, height, exact piconero amount, and
-UTC timestamp. The wallet is read in 100,000-block height windows, starting 60 blocks below
+UTC timestamp. The wallet is read in ascending 10,000-block height windows, starting 60 blocks below
 the last recorded height (from height 0 on a first run). Entries are filtered and combined by
-pure functions: entries before the start date dropped, amounts summed
-per txid, already-recorded txids dropped. The new rows are inserted in a single transaction.
+pure functions: amounts summed per txid, already-recorded txids dropped. Each window's new
+rows are inserted and committed in their own transaction, so an interrupted sync keeps every
+completed window.
 Settings come from CLI options, then `~/.config/monero-income/config.toml`, then defaults.
 Every failure ends as a one-line message with a non-zero exit, never a traceback.
 
@@ -44,7 +45,7 @@ limited to candidate rows.
 network access in tests. 20 s timeout per wallet request. Never modify or delete rows.
 
 **Scale/Scope**: One wallet. Up to about 10⁴ recorded transactions; a full first scan of
-roughly 35–40 window requests.
+roughly 380 window requests (research R2).
 
 ## Constitution Check
 
@@ -59,7 +60,7 @@ Checked against constitution v1.2.0.
 | III. Exact money | ✅ | No float anywhere. Amounts are exact `int` piconero (integer atomic units, permitted since v1.2.0) in memory and in SQLite. Conversion to XMR (`Decimal`) happens only at output, which this feature doesn't have. |
 | IV. Separate I/O from transformation | ✅ | Wallet fetch returns raw JSON; parsing, filtering, combining, windowing, and settings resolution are pure functions ([data-model.md](data-model.md)). The UTC date column is computed by SQLite, not in an I/O function. |
 | V. Testable without the network | ✅ | `WalletRpc` Protocol plus `FakeWalletRpc`; HTTP adapter tested with `httpx.MockTransport`; pytest-socket enforced. Database tests use in-memory SQLite, plus `tmp_path` files for the FR-016 file-handling rules (permitted since v1.2.0); no test reads the real config or database paths. |
-| VI. Data safety | ✅ | Insert-only, txid primary key, one transaction per sync, migrations keyed on `user_version`, unreadable files never recreated, newer schemas refused. |
+| VI. Data safety | ✅ | Insert-only, txid primary key, one transaction per height window (an interruption keeps completed windows), migrations keyed on `user_version`, unreadable files never recreated, newer schemas refused. |
 | VII. Automated gates | ✅ | All five gates are configured in `pyproject.toml`, with a 90% coverage floor. |
 | Constraints | ✅ | Python 3.13+/uv. Only the user's own wallet RPC at a configured URL (default `127.0.0.1`). No price API in this feature. Synthetic fixtures only. |
 | Workflow / golden files | ✅ | No report output in this feature, so no golden files are created or changed. |
@@ -100,15 +101,15 @@ src/monero_income/
 │   ├── __init__.py                 # public API: run, CliOptions, Reporter, SyncResult, RunError
 │   ├── run.py                      # run(): settings → database → sync; translates primitive errors
 │   ├── settings.py                 # pure: precedence, validation, permission check → Settings
-│   ├── sync.py                     # sync(): reads position, fetches windows, inserts new rows
-│   ├── transform.py                # pure: windows, since filter, combine, select new
+│   ├── sync.py                     # sync(): reads position; per window: fetch, insert new rows, commit
+│   ├── transform.py                # pure: windows, combine, select new
 │   └── errors.py                   # RunError
 └── primitives/
     ├── __init__.py
     ├── config_file.py              # read TOML → raw mapping + file mode (I/O only)
     ├── wallet_rpc.py               # WalletRpc Protocol, HttpWalletRpc (httpx), wallet errors
     ├── wallet_entries.py           # pure: raw JSON entries → IncomingEntry
-    ├── database.py                 # open_database, read position/txids/meta, insert batch
+    ├── database.py                 # open_database, read position/txids, insert a window's rows
     ├── migrations.py               # schema steps keyed by user_version (0 → 1)
     └── models.py                   # IncomingEntry, TransactionRecord
 

@@ -23,22 +23,7 @@ Index: `transactions_height_idx` on `height` (finding the last recorded height).
 
 Rows are only ever inserted, never updated or deleted (FR-009, constitution VI). Inserts use
 plain `INSERT`. A primary-key conflict can only come from a concurrent run and is reported as
-a storage error, with the whole batch rolled back.
-
-### Table `meta`
-
-Key-value settings that belong to the database rather than to a transaction.
-
-| Column | Type | Constraints |
-|--------|------|-------------|
-| `key` | `TEXT` | `PRIMARY KEY` |
-| `value` | `TEXT` | `NOT NULL` |
-
-Keys used by this feature:
-
-| Key | Value | Written | Meaning |
-|-----|-------|---------|---------|
-| `since` | `YYYY-MM-DD` | Once, in the same transaction that creates the schema, only if a start date was given | Start date (FR-020). Absent means no start date. |
+a storage error. That window's insert is rolled back; windows committed earlier stay.
 
 ## In-memory types
 
@@ -75,7 +60,6 @@ characters.
 | `username` | `str \| None` | `None` | Non-empty if given |
 | `password` | `str \| None` | `None` | From the config file only. Set without `username` → error (FR-018). |
 | `db_path` | `Path` | `~/.local/share/monero-income/xmr.db` | `~` expanded |
-| `since` | `date \| None` | `None` | ISO `YYYY-MM-DD`. TOML date literal or string in the config file. |
 
 Precedence per field: command-line option, then config file, then default. A username without
 a password is allowed; digest auth is attempted with an empty password, and the wallet
@@ -85,7 +69,7 @@ decides.
 
 | Field | Type | Meaning |
 |-------|------|---------|
-| `recorded` | `int` | Number of new transactions inserted by this run (FR-012) |
+| `recorded` | `int` | Number of new transactions inserted by this run, summed over all windows (FR-012) |
 
 ## Pure transformations (orchestration)
 
@@ -93,12 +77,10 @@ Each takes plain values and returns plain values, with no I/O (constitution IV).
 
 | Function | Input → output | Rule |
 |----------|----------------|------|
-| `fetch_windows(start_after, wallet_height)` | `int, int → list[tuple[int, int]]` | Consecutive `(lo, hi]` windows of 100,000 blocks covering `start_after < h <= wallet_height` |
+| `fetch_windows(start_after, wallet_height)` | `int, int → list[tuple[int, int]]` | Ascending, consecutive `(lo, hi]` windows of 10,000 blocks covering `start_after < h <= wallet_height` |
 | `first_window_start(last_height)` | `int \| None → int` | `None → 0`; else `max(last_height - 61, 0)` (60-block overlap, inclusive; `min_height` is exclusive) |
-| `discard_before(entries, since)` | `→ list[IncomingEntry]` | Keep `timestamp >= since 00:00:00 UTC`; no-op when `since` is `None` |
 | `combine_by_txid(entries)` | `→ list[TransactionRecord]` | One record per txid; amounts summed; height/timestamp from the entries (identical per txid) |
 | `select_new(records, recorded_txids)` | `→ list[TransactionRecord]` | Drop records already stored |
-| `check_since(given, saved, is_new_db)` | `→ date \| None` or error | New DB: the given date. Existing DB: given must be `None` or equal to saved; otherwise a mismatch error. |
 | `resolve_settings(cli, file, defaults)` | `→ Settings` or error | Precedence and validation above |
 | `is_readable_by_others(mode)` | `int → bool` | `mode & 0o004` |
 
@@ -108,17 +90,18 @@ Each takes plain values and returns plain values, with no I/O (constitution IV).
 resolve settings ── invalid ──▶ error (nothing touched)
       │
 open database ── unreadable / newer schema ──▶ error (file untouched)
-      │  missing → create parent dir + schema v1 + meta.since   (one transaction)
-      │  exists  → migrate to v1 if older                        (one transaction)
-check start date ── mismatch ──▶ error (nothing recorded)
+      │  missing → create parent dir + schema v1   (one transaction)
+      │  exists  → migrate to v1 if older           (one transaction)
+read last height ─▶ get_height ─▶ windows = fetch_windows(first_window_start(last), height)
       │
-read last height ─▶ get_height ─▶ fetch windows (in only) ── any wallet error ──▶ error
-      │                                                         (nothing recorded)
-transform: discard before since → combine → select new
+for each window, ascending:
+      get_transfers (in only) ── any wallet error ──▶ error (earlier windows stay committed)
+      transform: combine → select new
+      insert new records + commit (one transaction per window)
       │
-insert new records (one transaction) ─▶ SyncResult(recorded = n)
+SyncResult(recorded = total over windows)
 ```
 
-An interruption anywhere before the final commit leaves the database exactly as it was before
-the run, apart from a newly created empty database. An interruption during the commit is
-handled by SQLite's atomic commit.
+An interruption keeps every window committed before it. The window in progress is rolled
+back, and an interruption during a commit is handled by SQLite's atomic commit. The next run
+resumes from the last recorded height minus the 60-block overlap.

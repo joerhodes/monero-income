@@ -10,7 +10,6 @@ rpc_url  = "http://127.0.0.1:18088/json_rpc"   # string, default shown
 username = "monero"                             # string, optional
 password = "secret"                             # string, optional; config file only
 db_path  = "~/.local/share/monero-income/xmr.db" # string, default shown; ~ expanded
-since    = 2024-01-01                           # TOML date or "YYYY-MM-DD" string, optional
 ```
 
 | Key | Type | Default | CLI override |
@@ -19,7 +18,6 @@ since    = 2024-01-01                           # TOML date or "YYYY-MM-DD" stri
 | `username` | string | none | `--username` |
 | `password` | string | none | none (config file only) |
 | `db_path` | string | `~/.local/share/monero-income/xmr.db` | `--db-path` |
-| `since` | date or string | none | `--since` |
 
 ## Rules
 

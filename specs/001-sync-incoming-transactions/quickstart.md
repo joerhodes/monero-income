@@ -36,9 +36,7 @@ an in-memory database:
 | US2-2 New entry above last height | Only it added |
 | Overlap: entry re-mined 30 blocks lower | Not duplicated, existing row unchanged |
 | Multi-subaddress txid | One row, summed amount |
-| `since` on first run | Earlier entries never recorded, also on later runs |
-| `since` differs on later run | `RunError` (start-date mismatch); nothing recorded |
-| US3-1 Wallet fails on the 3rd window | `RunError`; rows unchanged; the next run equals an uninterrupted run |
+| US3-1 Wallet fails on the 3rd window | `RunError`; windows 1–2 stay committed; the next run equals an uninterrupted run |
 | US3-2 Wallet unreachable / login rejected | Matching error category; exit 1 |
 | Password without username | Error before any wallet call |
 

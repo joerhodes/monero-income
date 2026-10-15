@@ -6,7 +6,7 @@ feature, the sync is the whole run.
 ## Synopsis
 
 ```text
-monero-income [--rpc-url URL] [--username NAME] [--db-path PATH] [--since YYYY-MM-DD]
+monero-income [--rpc-url URL] [--username NAME] [--db-path PATH]
 ```
 
 | Option | Config key | Meaning |
@@ -14,7 +14,6 @@ monero-income [--rpc-url URL] [--username NAME] [--db-path PATH] [--since YYYY-M
 | `--rpc-url URL` | `rpc_url` | Wallet RPC address |
 | `--username NAME` | `username` | Wallet RPC login name (enables HTTP Digest) |
 | `--db-path PATH` | `db_path` | SQLite database file |
-| `--since YYYY-MM-DD` | `since` | Start date (UTC) for the first sync |
 
 There is deliberately **no `--password` option**. The password is read from the config file
 only. Option values override the config file (see [config.md](config.md)).
@@ -47,9 +46,9 @@ Rules that apply to every message:
 | Code | Meaning |
 |------|---------|
 | 0 | Sync completed (including "No new transactions found.") |
-| 1 | Any error: invalid settings, config file unreadable, database unreadable or newer schema, start-date mismatch, wallet unreachable, login rejected, wallet error, invalid wallet response, or an unexpected internal error |
+| 1 | Any error: invalid settings, config file unreadable, database unreadable or newer schema, wallet unreachable, login rejected, wallet error, invalid wallet response, or an unexpected internal error |
 | 2 | Command-line usage error (unknown option, missing option value), reported by Typer/Click without a traceback |
-| 130 | Interrupted (Ctrl-C). Nothing from this run was recorded. |
+| 130 | Interrupted (Ctrl-C). Height windows committed before the interruption are kept. |
 
 ## Error message catalogue
 
@@ -58,15 +57,14 @@ listed here. Tests assert on the category phrase.
 
 | Category | Message shape |
 |----------|---------------|
-| Invalid setting | `Error: invalid <key>: <reason>` (e.g. `invalid since: expected YYYY-MM-DD, got "2024/01/01"`) |
+| Invalid setting | `Error: invalid <key>: <reason>` (e.g. `invalid rpc_url: scheme must be http or https`) |
 | Password without username | `Error: password is set in <config path> but username is not` |
 | Config unreadable | `Error: cannot read config file <path>: <reason>` |
 | Database unreadable | `Error: cannot read database <path>: <reason>. The file was not changed.` |
 | Newer schema | `Error: database <path> was written by a newer version of monero-income (schema N)` |
-| Start-date mismatch | `Error: start date <given> does not match <saved> saved in <db path>` (or `… but no start date is saved in …`) |
 | Wallet unreachable | `Error: cannot reach the wallet at <rpc_url>: <reason>` |
 | Login rejected | `Error: the wallet at <rpc_url> rejected the login; check username and password` |
 | Wallet error | `Error: the wallet returned an error: <wallet message>` |
 | Invalid wallet response | `Error: unexpected response from the wallet: <reason>` |
-| Interrupted | `Error: interrupted; no new transactions were recorded by this run` |
+| Interrupted | `Error: interrupted; transactions recorded before the interruption were kept` |
 | Unexpected | `Error: unexpected <ExceptionType>: <message>` |

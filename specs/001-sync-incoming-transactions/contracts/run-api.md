@@ -12,7 +12,6 @@ class CliOptions:
     rpc_url: str | None = None
     username: str | None = None
     db_path: str | None = None
-    since: str | None = None          # raw text; validated in resolve_settings
 
 class Reporter(Protocol):
     def warning(self, message: str) -> None: ...
