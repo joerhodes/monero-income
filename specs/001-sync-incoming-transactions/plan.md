@@ -50,36 +50,22 @@ roughly 35–40 window requests.
 
 *GATE: Must pass before Phase 0 research. Re-checked after Phase 1 design (below).*
 
+Checked against constitution v1.2.0.
+
 | Principle | Status | How the design complies |
 |-----------|--------|-------------------------|
 | I. Layered architecture | ✅ | `primitives/` (wallet RPC, config file reading, database), `orchestration/` (settings, sync, run), `cli.py`. import-linter `layers` contract plus a `forbidden` contract cli → primitives, to enforce "no skipping" (research R8). |
 | II. Thin CLI | ✅ | `cli.py` maps options to `CliOptions`, calls `run()`, prints the result or error. `run()` is fully testable without Typer ([contracts/run-api.md](contracts/run-api.md)). |
-| III. Exact money | ⚠️ See note 1 | No float anywhere. Amounts are exact `int` piconero in memory and in SQLite, as decided. Conversion to XMR (`Decimal`) happens only at output, which this feature doesn't have. |
+| III. Exact money | ✅ | No float anywhere. Amounts are exact `int` piconero (integer atomic units, permitted since v1.2.0) in memory and in SQLite. Conversion to XMR (`Decimal`) happens only at output, which this feature doesn't have. |
 | IV. Separate I/O from transformation | ✅ | Wallet fetch returns raw JSON; parsing, filtering, combining, windowing, and settings resolution are pure functions ([data-model.md](data-model.md)). The UTC date column is computed by SQLite, not in an I/O function. |
-| V. Testable without the network | ⚠️ See note 2 | `WalletRpc` Protocol plus `FakeWalletRpc`; HTTP adapter tested with `httpx.MockTransport`; pytest-socket enforced. |
+| V. Testable without the network | ✅ | `WalletRpc` Protocol plus `FakeWalletRpc`; HTTP adapter tested with `httpx.MockTransport`; pytest-socket enforced. Database tests use in-memory SQLite, plus `tmp_path` files for the FR-016 file-handling rules (permitted since v1.2.0); no test reads the real config or database paths. |
 | VI. Data safety | ✅ | Insert-only, txid primary key, one transaction per sync, migrations keyed on `user_version`, unreadable files never recreated, newer schemas refused. |
-| VII. Automated gates | ⚠️ See note 3 | All five gates are configured in `pyproject.toml`. |
+| VII. Automated gates | ✅ | All five gates are configured in `pyproject.toml`, with a 90% coverage floor. |
 | Constraints | ✅ | Python 3.13+/uv. Only the user's own wallet RPC at a configured URL (default `127.0.0.1`). No price API in this feature. Synthetic fixtures only. |
 | Workflow / golden files | ✅ | No report output in this feature, so no golden files are created or changed. |
 
-**Notes requiring your action** (Governance: amend before deviating):
-
-1. **III, Exact money**: the principle says amounts are `Decimal` "from the point they enter
-   the system to the point they are output". The decided design holds them as integer
-   piconero until output. It is exact and float-free, which matches the principle's intent,
-   but not its letter. Either amend III (for example, "XMR amounts are exact: integer atomic
-   units or `Decimal`; never float") or change the design to hold `Decimal` in memory.
-2. **V, Testable without the network**: "Tests MUST use … in-memory SQLite for the database."
-   Most tests do, through the `connect` seam, but FR-016 (create a missing file and its parent
-   directory, never recreate an unreadable file) can only be tested on real files (pytest
-   `tmp_path`). These tests touch no network. Proposed amendment: "in-memory SQLite, or
-   temporary files where file handling itself is under test."
-3. **VII, Automated gates**: the coverage floor percentage is still undecided. This feature
-   creates `pyproject.toml`. **Proposed: 90%.** Confirm or give a number.
-
-None of these is a design blocker, but under Governance, notes 1 and 2 need a constitution
-amendment (PATCH-level wording, which could also fix "Operation MUST NOT" in VI) before
-implementation.
+**Resolved notes**: The Principle III (integer atomic units) and Principle V (temporary files
+in tests) conflicts were resolved by the v1.2.0 amendment. The coverage floor is set at 90%.
 
 **Post-design re-check**: unchanged. Phase 1 introduced no new deviations.
 
@@ -141,5 +127,5 @@ creating a fourth layer.
 
 ## Complexity Tracking
 
-No unjustified violations. The constitution notes above are recorded for amendment, not
-justified here: Governance doesn't allow a plan to justify a deviation.
+No violations. The earlier constitution conflicts were resolved by amendment (v1.2.0), not
+justified here.
