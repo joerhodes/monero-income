@@ -143,8 +143,6 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - **Unconfirmed incoming transactions** (seen by the wallet but not yet in a block): not
   recorded, because they have no block height yet; they are recorded by a later sync once
   confirmed.
-- **Self transfers** (transactions the wallet sends to itself, which the wallet also reports
-  as incoming): excluded when retrieving incoming transactions, so they are never recorded.
 - **One transaction paying the wallet more than once** (for example, to multiple
   subaddresses): recorded once, with the total amount the wallet received in that
   transaction.
@@ -183,9 +181,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
   delivered by later features). Until those features exist, a run consists of the sync alone.
 - **FR-002**: Sync MUST record every confirmed incoming wallet transaction that is not already
   recorded, except transactions before the start date when one is set (FR-020).
-- **FR-003**: Sync MUST NOT record outgoing transactions. Self transfers (transactions the
-  wallet sends to itself) MUST be excluded when retrieving incoming transactions, even though
-  the wallet also reports them as incoming.
+- **FR-003**: Sync MUST NOT record outgoing transactions. 
 - **FR-004**: Sync MUST record an incoming transaction once it is included in a block, with no
   additional confirmations required, and MUST NOT record incoming transactions that are not
   yet in a block.
@@ -274,3 +270,8 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - USD pricing, CSV output, and on-screen income summaries are out of scope and will be
   specified as separate features.
 - This feature produces no report output, so it does not create or change any golden files.
+- The tool reads a view-only wallet, which sees incoming transactions fully but cannot
+  reliably see outgoing ones.
+- This is a mining wallet that is spent from rarely.  When it is spent from, change returning
+  to the walletappeats as an incoming transaction and is recorded like any other.
+  Distinguishing change from income is out of scope for this feature.
