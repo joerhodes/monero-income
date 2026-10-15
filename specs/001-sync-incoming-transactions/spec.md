@@ -64,6 +64,10 @@ full precision, and the exact moment it occurred, independent of time zone."
 - Q: Does the tool still accept an optional start date for the first sync? → A: No; the start
   date is removed entirely (supersedes the 2026-10-13 start-date decision). The wallet's own
   restore height already limits its history, so a start date is unnecessary.
+- Q: Which wallet accounts does the tool read? → A: Account 0 only, where mining payouts
+  arrive. Other accounts are out of scope.
+- Q: What happens if a second run starts while one is in progress? → A: The second run may
+  fail with a storage error; no recorded data is lost.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -177,6 +181,8 @@ intact, and a subsequent successful sync produces the same records as an uninter
   first run.
 - **Very large history** (thousands of incoming transactions on first sync): all are recorded
   in a single run.
+- **Second run started while one is in progress**: the second run may fail with a storage
+  error; no recorded data is lost.
 
 ## Requirements *(mandatory)*
 
@@ -267,6 +273,8 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - A transaction's "moment it occurred" is the timestamp the wallet reports for it, at the
   precision the wallet provides (whole seconds).
 - The tool works with one wallet. Supporting multiple wallets is out of scope.
+- The tool reads account 0 of the wallet only, where mining payouts arrive. Other accounts are
+  out of scope.
 - Wallet amounts have a fixed precision of 12 decimal places (the smallest Monero unit).
 - USD pricing, CSV output, and on-screen income summaries are out of scope and will be
   specified as separate features.
