@@ -54,6 +54,13 @@ full precision, and the exact moment it occurred, independent of time zone."
   must match the remembered one or the run fails with an error.
 - Q: Which word do user-facing messages use? → A: "Transactions", never "transfers".
 
+### Session 2026-10-15
+
+- Q: Does the tool still accept an optional start date for the first sync? → A: No. The start
+  date is removed entirely (supersedes the 2026-10-13 start-date decision). The wallet's own
+  restore height already limits its history, so the tool records every incoming transaction
+  the wallet reports.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Record incoming transactions from the wallet (Priority: P1)
@@ -151,17 +158,13 @@ intact, and a subsequent successful sync produces the same records as an uninter
   or deleted.
 - **First run** (no local records exist yet): the tool creates the local records, then
   records the wallet's incoming transactions as on any other sync.
-- **Start date given on the first sync**: incoming transactions that occurred before 00:00:00
-  UTC on that date are not recorded, on this run or any later run.
-- **Start date given on a later run**: accepted if it matches the start date remembered from
-  the first sync; otherwise reported as an error, and nothing is recorded or changed.
 - **Empty wallet** (no incoming transactions at all): treated the same as "no new
   transactions found".
 - **Wallet login rejected** (wrong or missing username/password): reported as an error that
   identifies the login as the problem; the tool exits without changing existing records.
 - **Password given without a username**: reported as an error; the tool does not contact the
   wallet.
-- **Invalid settings** (for example, a malformed wallet address or start date): reported as
+- **Invalid settings** (for example, a malformed wallet address): reported as
   an error; nothing is recorded or changed.
 - **Wallet unreachable or not responding** (wrong address, machine offline, wallet not
   running): reported as an error that names the wallet address the tool tried to reach.
@@ -180,7 +183,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
   runs automatically as the first step, before any later step (such as pricing or reporting,
   delivered by later features). Until those features exist, a run consists of the sync alone.
 - **FR-002**: Sync MUST record every confirmed incoming wallet transaction that is not already
-  recorded, except transactions before the start date when one is set (FR-020).
+  recorded.
 - **FR-003**: Sync MUST NOT record outgoing transactions. 
 - **FR-004**: Sync MUST record an incoming transaction once it is included in a block, with no
   additional confirmations required, and MUST NOT record incoming transactions that are not
@@ -220,11 +223,6 @@ intact, and a subsequent successful sync produces the same records as an uninter
   command line. A password supplied without a username MUST be reported as an error. The tool
   MUST NOT display the password in any output, including error messages.
 - **FR-019**: User-facing messages MUST refer to "transactions", never "transfers".
-- **FR-020**: On the first sync (the run that creates the local records), users MAY give an
-  optional start date, interpreted in UTC. Incoming transactions that occurred before 00:00:00
-  UTC on the start date MUST NOT be recorded. The start date MUST be remembered with the local
-  records and applied to every later sync. A start date given on a later run MUST match the
-  remembered start date; otherwise the run MUST fail with an error and change nothing.
 
 ### Key Entities
 
@@ -234,15 +232,14 @@ intact, and a subsequent successful sync produces the same records as an uninter
   a time-zone-independent instant).
 - **Local transaction record store**: The persistent, local collection of incoming
   transactions that survives between runs and is only ever added to by sync. It is created by
-  the first run and remembers the optional start date given on the first sync.
+  the first run.
 
 ## Success Criteria *(mandatory)*
 
 ### Measurable Outcomes
 
-- **SC-001**: After a successful sync, 100% of the wallet's confirmed incoming transactions on
-  or after the start date (all of them when no start date is set) are recorded, and 0
-  outgoing transactions, self transfers, or transactions before the start date are recorded.
+- **SC-001**: After a successful sync, 100% of the wallet's confirmed incoming transactions are
+  recorded, and 0 outgoing transactions or self transfers are recorded.
 - **SC-002**: 100% of recorded amounts match the wallet's reported amounts exactly, to all 12
   decimal places.
 - **SC-003**: Running sync any number of times in a row with no wallet changes produces
