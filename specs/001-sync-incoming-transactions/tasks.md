@@ -54,7 +54,7 @@ on its own.
     - a `forbidden` contract stopping `monero_income.cli` from importing `monero_income.primitives` ("no skipping", research R8).
 - [ ] T003 [P] Create the package skeleton with empty modules: `src/monero_income/__init__.py`, `src/monero_income/py.typed`, `src/monero_income/orchestration/__init__.py`, `src/monero_income/primitives/__init__.py`, plus `tests/__init__.py`, `tests/fakes/__init__.py`, `tests/unit/__init__.py`, `tests/adapters/__init__.py`, `tests/integration/__init__.py`, `tests/cli/__init__.py`
 - [ ] T004 [P] Append to `.gitignore`: `*.db`, `*.sqlite`, `*.sqlite3`, `config.toml`, `.venv/`, `__pycache__/`, `.coverage`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/` (constitution: real wallet data and database snapshots are never committed)
-- [ ] T005 [P] Create `tests/conftest.py` with an autouse fixture that uses `monkeypatch.setenv("HOME", str(tmp_path))`. The default config path and default `db_path` expand `~` when `run()` is called (contracts/run-api.md), so every test that omits `config_path` or `db_path` resolves under `tmp_path`, never the real `~/.config/monero-income/config.toml` or `~/.local/share/monero-income/xmr.db`.
+- [ ] T005 Create `tests/conftest.py` with an autouse fixture that uses `monkeypatch.setenv("HOME", str(tmp_path))`. The default config path and default `db_path` expand `~` when `run()` is called (contracts/run-api.md), so every test that omits `config_path` or `db_path` resolves under `tmp_path`, never the real `~/.config/monero-income/config.toml` or `~/.local/share/monero-income/xmr.db`.
 - [ ] T006 Run `uv sync`, then `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` on the skeleton and fix configuration until they pass (pytest runs from Phase 2 on)
 
 **Checkpoint**: Toolchain installed; static gates pass on an empty package
@@ -110,7 +110,7 @@ user story depends on these.
   - an existing file containing `junk` raises `StorageReadError`, and the bytes on disk are unchanged afterwards;
   - a file with `user_version` 2 raises `SchemaTooNewError`.
 - [ ] T014 Implement `src/monero_income/primitives/database.py`, raising errors from `errors.py`:
-  - `open_database(path: Path) -> sqlite3.Connection`:
+  - `open_database(path: Path, timeout: float = 5.0) -> sqlite3.Connection` (`timeout` is passed to `sqlite3.connect` as the lock wait):
     - if the file is missing: `mkdir(parents=True, exist_ok=True)` on the parent, then connect via URI `file:{path}?mode=rwc`;
     - otherwise connect via `mode=rw`;
     - always connect with `uri=True, autocommit=False`;
@@ -271,7 +271,7 @@ txids.
 only new txids, never touch existing rows, and say "No new transactions found." when nothing
 is new. Covers FR-008 to FR-011 and SC-003 and SC-006.
 
-**Independent Test**: Run `run()` twice against the same fake and in-memory database. The
+**Independent Test**: Run `run()` twice against the same fake and a `tmp_path` database file. The
 second run returns `recorded == 0` and the table dump is byte-for-byte identical. Add one
 entry above the last height; a third run adds only it.
 
@@ -318,8 +318,11 @@ identical to a single uninterrupted run on a fresh database.
 - [ ] T040 [P] [US3] Write `tests/integration/test_interruption.py`, using `tmp_path` database files:
   - **Wallet failure (US3-1, SC-004)**: `fail_on_call=3` with `WalletUnreachableError` raises `RunError`, and only windows 1–2 are stored. The next run's table equals a fresh uninterrupted run's table.
   - **Ctrl-C**: `fail_on_call=2` with `KeyboardInterrupt` propagates `KeyboardInterrupt`. Reopening the file with `open_database` succeeds (no lock is left behind) and shows window 1's rows and nothing from window 2.
-  - **Partial window (FR-013)**: a duplicate-txid failure in the middle of a window's insert leaves no row from that window.
-- [ ] T041 [P] [US3] Write `tests/integration/test_errors.py`. Each case raises `RunError` whose message contains the contracts/cli.md category phrase:
+  - **Partial window (FR-013)**: the third window holds one normal entry and one at 9,223,372,036,854,775,808 piconero, which overflows on insert. `run()` raises `RunError`; neither of that window's rows is stored, and windows 1–2 stay.
+- [ ] T041 [P] [US3] Write `tests/integration/test_concurrent_run.py` (spec edge case "Second run started while one is in progress"). On a `tmp_path` database with recorded rows, a second connection runs `BEGIN IMMEDIATE` and holds the write lock while `run()` is called with `connect=lambda p: open_database(p, timeout=0.1)` and a fake that reports one new entry. Assert:
+  - `run()` raises `RunError` containing `cannot write to database` (or `cannot read database` if the lock hits at open);
+  - after the holder rolls back, the previously recorded rows are intact and unchanged.
+- [ ] T042 [P] [US3] Write `tests/integration/test_errors.py`. Each case raises `RunError` whose message contains the contracts/cli.md category phrase:
   - `cannot reach the wallet at` (unreachable);
   - `rejected the login` (login);
   - `the wallet returned an error` (`WalletRpcError`);
@@ -332,7 +335,7 @@ identical to a single uninterrupted run on a fresh database.
   - `invalid rpc_url`.
 
   Across all cases, assert that the distinctive password `pw-Zq9!secret` never appears in any message and that no message contains `transfer` (case-insensitive).
-- [ ] T042 [P] [US3] Write `tests/cli/test_cli_errors.py` with `CliRunner`, monkeypatching `run`:
+- [ ] T043 [P] [US3] Write `tests/cli/test_cli_errors.py` with `CliRunner`, monkeypatching `run`:
   - `RunError("x")` → stderr `Error: x`, exit 1;
   - `KeyboardInterrupt` → `Error: interrupted; anything already recorded was kept`, exit 130;
   - `ValueError("boom")` → `Error: unexpected ValueError: boom`, exit 1;
@@ -342,8 +345,8 @@ identical to a single uninterrupted run on a fresh database.
 
 ### Implementation for User Story 3
 
-- [ ] T043 [US3] Update `sync()` in `src/monero_income/orchestration/sync.py`: wrap each window in `try/except BaseException: conn.rollback(); raise`, so an interruption or error mid-window leaves no open transaction and no partial window. Windows already committed stay.
-- [ ] T044 [US3] Update `run()` in `src/monero_income/orchestration/run.py` to translate primitive errors into `RunError`, using the contracts/cli.md wording:
+- [ ] T044 [US3] Update `sync()` in `src/monero_income/orchestration/sync.py`: wrap each window in `try/except BaseException: conn.rollback(); raise`, so an interruption or error mid-window leaves no open transaction and no partial window. Windows already committed stay.
+- [ ] T045 [US3] Update `run()` in `src/monero_income/orchestration/run.py` to translate primitive errors into `RunError`, using the contracts/cli.md wording:
   - `ConfigFileError` → `cannot read config file <path>: <reason>`;
   - `SchemaTooNewError` → `database <path> was written by a newer version of monero-income (schema N)`;
   - `StorageReadError` → `cannot read database <path>: <reason>. The file was not changed.`;
@@ -354,12 +357,12 @@ identical to a single uninterrupted run on a fresh database.
   - `WalletResponseError` → `unexpected response from the wallet: <reason>`.
 
   Let `KeyboardInterrupt` propagate. Make sure no message includes the password or "transfer".
-- [ ] T045 [US3] Update `src/monero_income/cli.py` to wrap the `run()` call:
+- [ ] T046 [US3] Update `src/monero_income/cli.py` to wrap the `run()` call:
   - `RunError` → `Error: <message>` on stderr, `raise typer.Exit(1)`;
   - `KeyboardInterrupt` → `Error: interrupted; anything already recorded was kept`, exit 130;
   - any other `Exception` → `Error: unexpected <TypeName>: <message>`, exit 1.
 
-  This makes T040–T042 pass.
+  This makes T040–T043 pass.
 
 **Checkpoint**: All three stories pass independently; every failure path is a clean message
 
@@ -369,10 +372,10 @@ identical to a single uninterrupted run on a fresh database.
 
 **Purpose**: Gates, wording sweep, docs, and end-to-end validation
 
-- [ ] T046 [P] Add a test in `tests/cli/test_messages.py` that collects every string literal in `src/monero_income/cli.py` and `src/monero_income/orchestration/` (via `ast`) and asserts none contains `transfer` (case-insensitive) (FR-019). No exemptions: `get_transfers` lives only in primitives, which isn't scanned.
-- [ ] T047 [P] Add a usage section to `README.md`: install with `uv`, the config file keys from contracts/config.md (including `chmod 600`), the command `monero-income` and its options, and the output lines. Update the Status section to say feature 001 (sync) is available.
-- [ ] T048 Run all gates and fix any failures until all five pass with coverage ≥ 90%: `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`.
-- [ ] T049 Run the manual end-to-end checks in `specs/001-sync-incoming-transactions/quickstart.md` §3 against a stagenet `monero-wallet-rpc`, and record the results in the PR description. Don't commit any database or wallet files.
+- [ ] T047 [P] Add a test in `tests/cli/test_messages.py` that collects every string literal in `src/monero_income/cli.py` and `src/monero_income/orchestration/` (via `ast`) and asserts none contains `transfer` (case-insensitive) (FR-019). No exemptions: `get_transfers` lives only in primitives, which isn't scanned.
+- [ ] T048 [P] Add a usage section to `README.md`: install with `uv`, the config file keys from contracts/config.md (including `chmod 600`), the command `monero-income` and its options, and the output lines. Update the Status section to say feature 001 (sync) is available.
+- [ ] T049 Run all gates and fix any failures until all five pass with coverage ≥ 90%: `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`.
+- [ ] T050 Run the manual end-to-end checks in `specs/001-sync-incoming-transactions/quickstart.md` §3 against a stagenet `monero-wallet-rpc`, and record the results in the PR description. Don't commit any database or wallet files.
 
 ---
 
@@ -380,7 +383,7 @@ identical to a single uninterrupted run on a fresh database.
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: none. T001 → T002 (same file); T003, T004 and T005 in parallel (T005 after T003 creates `tests/`); T006 last.
+- **Setup (Phase 1)**: none. T001 → T002 (same file); T003 and T004 in parallel; T005 after T003 creates `tests/`; T006 last.
 - **Foundational (Phase 2)**: depends on Setup and blocks all stories.
   - T007 (`errors.py`) comes first: T011, T014, T016, T018 and T020 import from it.
   - T010 → T011, and T012/T013 → T014 (T014 also needs T011).
@@ -389,7 +392,7 @@ identical to a single uninterrupted run on a fresh database.
   - T023 needs T018's Protocol.
 - **US1 (Phase 3)**: depends on Phase 2. T024–T027 [P] → T028 → T029 → T030 → T031 → T032.
 - **US2 (Phase 4)**: depends on US1. It changes US1's `sync()` and `cli.py`; its tests can be written in parallel with US1 work. T033–T036 [P] → T037 → T038 → T039.
-- **US3 (Phase 5)**: depends on US1. It changes `sync()`, `run()` and `cli.py`, and is independent of US2's behavior. T040–T042 [P] → T043 → T044 → T045.
+- **US3 (Phase 5)**: depends on US1. It changes `sync()`, `run()` and `cli.py`, and is independent of US2's behavior. T040–T043 [P] → T044 → T045 → T046.
 - **Polish (Phase 6)**: depends on all stories.
 
 ### User Story Dependencies
@@ -440,8 +443,9 @@ Task: "T036 tests/integration/test_performance.py"
 
 ```bash
 Task: "T040 tests/integration/test_interruption.py"
-Task: "T041 tests/integration/test_errors.py"
-Task: "T042 tests/cli/test_cli_errors.py"
+Task: "T041 tests/integration/test_concurrent_run.py"
+Task: "T042 tests/integration/test_errors.py"
+Task: "T043 tests/cli/test_cli_errors.py"
 ```
 
 ---

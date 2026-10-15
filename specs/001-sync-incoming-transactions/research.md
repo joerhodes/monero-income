@@ -97,7 +97,8 @@ failed=false, pool=false`) and has no self-transfer detection.
   incoming and both are recorded.
 - `get_transfers` defaults to `account_index=0` with `all_accounts=false`, so the decided
   request returns only account 0's incoming entries. A wallet that receives payouts in other
-  accounts would need `all_accounts=true`; that isn't part of the decided request.
+  accounts would need `all_accounts=true`; that isn't part of the decided request. This is
+  intended; see the spec's Assumptions (account 0 only).
 - `pending=false, failed=false, pool=false` exclude unconfirmed entries; `in` comes only from
   confirmed blocks, which matches FR-004 (one confirmation).
 - On a chain reorganization the wallet drops entries above the fork point and re-adds them

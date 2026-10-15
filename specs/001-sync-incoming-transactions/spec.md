@@ -214,7 +214,7 @@ intact, and a subsequent successful sync produces the same records as an uninter
 - **FR-011**: When a sync finds no new incoming transactions, the tool MUST display a message
   saying so and then continue with the rest of the run.
 - **FR-012**: When a sync records new transactions, the tool MUST tell the user how many were
-  recorded.
+  recorded. This applies to runs that complete successfully; failed runs follow FR-015.
 - **FR-013**: If a sync is interrupted, every transaction recorded before the interruption
   MUST be kept, and no transaction MUST be left partially recorded.
 - **FR-014**: A sync following an interrupted sync MUST record the remaining incoming
