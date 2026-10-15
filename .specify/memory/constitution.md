@@ -35,10 +35,10 @@ framework, and the CLI stays trivially reviewable.
 
 ### III. Exact Money
 
-Monetary and XMR amounts MUST be represented as `Decimal` from the point they enter the
-system to the point they are output, and MUST be stored losslessly. `float` MUST NOT be used
-for any monetary or XMR value, including intermediate calculations, serialization, and
-storage.
+Monetary and XMR amounts MUST be exact from the point they enter the system to the point they
+are output: each is represented either as an integer count of atomic units (for XMR,
+piconero) or as a `Decimal`, and MUST be stored losslessly. `float` MUST NOT be used for any
+monetary or XMR value, including intermediate calculations, serialization, and storage.
 
 Rationale: binary floating point cannot represent decimal currency exactly; rounding errors
 in income reports are correctness bugs.
@@ -54,8 +54,9 @@ stay small enough to verify against fakes.
 ### V. Testable Without the Network
 
 Every external service (wallet RPC, price API) MUST sit behind a `typing.Protocol`. Tests
-MUST use fakes that implement those protocols and in-memory SQLite for the database. The
-test suite MUST NOT make network calls.
+MUST use fakes that implement those protocols. For the database, tests MUST use in-memory
+SQLite or temporary files (for example, pytest's `tmp_path`). Tests MUST NOT touch real user
+data, and the test suite MUST NOT make network calls.
 
 Rationale: tests that depend on live services are slow, flaky, and can leak wallet data.
 
@@ -117,4 +118,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.1.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-14
+**Version**: 1.2.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-15
