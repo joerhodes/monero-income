@@ -52,3 +52,7 @@ The task says to record the results in the PR description, then mark T050 [X]. D
 ## Notes
 All gates run cleanly.
 All code and tests pass an initial sniff test - nothing jumps out.
+
+Ran a sync against wallet RPC and compared to previous version.
+- Sync recorded the current number of transaction records.
+- Last 5 transaction records match records from old system.

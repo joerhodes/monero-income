@@ -19,7 +19,7 @@ is expected to produce matching reports for the same data.
 
 ## Status
 
-Not yet usable. See `.specify/` and `specs/` for the spec work in progress.
+Feature 001 (wallet sync) in complete.
 
 ## Usage
 
