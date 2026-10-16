@@ -35,10 +35,10 @@ framework, and the CLI stays trivially reviewable.
 
 ### III. Exact Money
 
-Monetary and XMR amounts MUST be represented as `Decimal` from the point they enter the
-system to the point they are output, and MUST be stored losslessly. `float` MUST NOT be used
-for any monetary or XMR value, including intermediate calculations, serialization, and
-storage.
+Monetary and XMR amounts MUST be exact from the point they enter the system to the point they
+are output: each is represented either as an integer count of atomic units (for XMR,
+piconero) or as a `Decimal`, and MUST be stored losslessly. `float` MUST NOT be used for any
+monetary or XMR value, including intermediate calculations, serialization, and storage.
 
 Rationale: binary floating point cannot represent decimal currency exactly; rounding errors
 in income reports are correctness bugs.
@@ -54,8 +54,9 @@ stay small enough to verify against fakes.
 ### V. Testable Without the Network
 
 Every external service (wallet RPC, price API) MUST sit behind a `typing.Protocol`. Tests
-MUST use fakes that implement those protocols and in-memory SQLite for the database. The
-test suite MUST NOT make network calls.
+MUST use fakes that implement those protocols. For the database, tests MUST use in-memory
+SQLite or temporary files (for example, pytest's `tmp_path`). Tests MUST NOT touch real user
+data, and the test suite MUST NOT make network calls.
 
 Rationale: tests that depend on live services are slow, flaky, and can leak wallet data.
 
@@ -65,7 +66,7 @@ Rationale: tests that depend on live services are slow, flaky, and can leak wall
   stored state.
 - Sync MUST be interruption-safe: an interrupted sync leaves the database consistent and
   a subsequent run completes correctly.
-- Operation MUST NOT delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
+- Operations MUST NOT delete transaction records or overwrite finalized prices. Provisional prices MAY be refreshed until they are finalized.
 - Schema changes MUST ship as explicit migrations, and each migration path MUST be tested
   from every prior released schema version.
 
@@ -92,8 +93,7 @@ and keeping configuration in one place prevents drift.
 
 - **Runtime**: Python 3.13 or newer.
 - **Tooling**: the project MUST be managed with uv.
-- **Local-first**: the only external dependency at runtime is the price API. The wallet RPC
-  and database are local.
+- **Local-first**: the only external dependency at runtime is the price API. The wallet RPC is self-hosted by the user and reached at a URL they configure; the database is local.
 - **Private data**: real wallet data and database snapshots MUST NOT be committed to the
   repository. Test fixtures MUST be synthetic.
 
@@ -118,4 +118,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.0.1 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-12
+**Version**: 1.2.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-15

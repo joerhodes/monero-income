@@ -1,1 +1,11 @@
 .DS_Store
+*.db
+*.sqlite
+*.sqlite3
+config.toml
+.venv/
+__pycache__/
+.coverage
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
