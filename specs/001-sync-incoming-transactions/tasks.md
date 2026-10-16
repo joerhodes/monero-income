@@ -372,9 +372,9 @@ identical to a single uninterrupted run on a fresh database.
 
 **Purpose**: Gates, wording sweep, docs, and end-to-end validation
 
-- [ ] T047 [P] Add a test in `tests/cli/test_messages.py` that collects every string literal in `src/monero_income/cli.py` and `src/monero_income/orchestration/` (via `ast`) and asserts none contains `transfer` (case-insensitive) (FR-019). No exemptions: `get_transfers` lives only in primitives, which isn't scanned.
-- [ ] T048 [P] Add a usage section to `README.md`: install with `uv`, the config file keys from contracts/config.md (including `chmod 600`), the command `monero-income` and its options, and the output lines. Update the Status section to say feature 001 (sync) is available.
-- [ ] T049 Run all gates and fix any failures until all five pass with coverage ≥ 90%: `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`.
+- [X] T047 [P] Add a test in `tests/cli/test_messages.py` that collects every string literal in `src/monero_income/cli.py` and `src/monero_income/orchestration/` (via `ast`) and asserts none contains `transfer` (case-insensitive) (FR-019). No exemptions: `get_transfers` lives only in primitives, which isn't scanned.
+- [X] T048 [P] Add a usage section to `README.md`: install with `uv`, the config file keys from contracts/config.md (including `chmod 600`), the command `monero-income` and its options, and the output lines. Update the Status section to say feature 001 (sync) is available.
+- [X] T049 Run all gates and fix any failures until all five pass with coverage ≥ 90%: `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`.
 - [ ] T050 Run the manual end-to-end checks in `specs/001-sync-incoming-transactions/quickstart.md` §3 against a stagenet `monero-wallet-rpc`, and record the results in the PR description. Don't commit any database or wallet files.
 
 ---
