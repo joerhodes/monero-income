@@ -44,18 +44,18 @@ on its own.
 
 **Purpose**: Project initialization and quality gates
 
-- [ ] T001 Create `pyproject.toml` with `[project]` name `monero-income`, `requires-python = ">=3.13"`, runtime dependencies `typer` and `httpx`, a uv dev dependency group with `pytest`, `pytest-cov`, `pytest-socket`, `ruff`, `mypy`, `import-linter`, the uv build backend for a `src/` layout package `monero_income`, and `[project.scripts] monero-income = "monero_income.cli:main"`
-- [ ] T002 Add tool configuration to `pyproject.toml`:
+- [X] T001 Create `pyproject.toml` with `[project]` name `monero-income`, `requires-python = ">=3.13"`, runtime dependencies `typer` and `httpx`, a uv dev dependency group with `pytest`, `pytest-cov`, `pytest-socket`, `ruff`, `mypy`, `import-linter`, the uv build backend for a `src/` layout package `monero_income`, and `[project.scripts] monero-income = "monero_income.cli:main"`
+- [X] T002 Add tool configuration to `pyproject.toml`:
   - ruff: lint rules plus formatter, line length 100.
   - mypy: `strict = true`, `files = ["src", "tests"]`.
   - pytest: `testpaths = ["tests"]`, `addopts = "--disable-socket --cov=monero_income --cov-report=term-missing --cov-fail-under=90"`.
   - import-linter `[tool.importlinter]` with `root_package = "monero_income"` and two contracts:
     - a `layers` contract `monero_income.cli` > `monero_income.orchestration` > `monero_income.primitives`;
     - a `forbidden` contract stopping `monero_income.cli` from importing `monero_income.primitives` ("no skipping", research R8).
-- [ ] T003 [P] Create the package skeleton with empty modules: `src/monero_income/__init__.py`, `src/monero_income/py.typed`, `src/monero_income/orchestration/__init__.py`, `src/monero_income/primitives/__init__.py`, plus `tests/__init__.py`, `tests/fakes/__init__.py`, `tests/unit/__init__.py`, `tests/adapters/__init__.py`, `tests/integration/__init__.py`, `tests/cli/__init__.py`
-- [ ] T004 [P] Append to `.gitignore`: `*.db`, `*.sqlite`, `*.sqlite3`, `config.toml`, `.venv/`, `__pycache__/`, `.coverage`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/` (constitution: real wallet data and database snapshots are never committed)
-- [ ] T005 Create `tests/conftest.py` with an autouse fixture that uses `monkeypatch.setenv("HOME", str(tmp_path))`. The default config path and default `db_path` expand `~` when `run()` is called (contracts/run-api.md), so every test that omits `config_path` or `db_path` resolves under `tmp_path`, never the real `~/.config/monero-income/config.toml` or `~/.local/share/monero-income/xmr.db`.
-- [ ] T006 Run `uv sync`, then `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` on the skeleton and fix configuration until they pass (pytest runs from Phase 2 on)
+- [X] T003 [P] Create the package skeleton with empty modules: `src/monero_income/__init__.py`, `src/monero_income/py.typed`, `src/monero_income/orchestration/__init__.py`, `src/monero_income/primitives/__init__.py`, plus `tests/__init__.py`, `tests/fakes/__init__.py`, `tests/unit/__init__.py`, `tests/adapters/__init__.py`, `tests/integration/__init__.py`, `tests/cli/__init__.py`
+- [X] T004 [P] Append to `.gitignore`: `*.db`, `*.sqlite`, `*.sqlite3`, `config.toml`, `.venv/`, `__pycache__/`, `.coverage`, `.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/` (constitution: real wallet data and database snapshots are never committed)
+- [X] T005 Create `tests/conftest.py` with an autouse fixture that uses `monkeypatch.setenv("HOME", str(tmp_path))`. The default config path and default `db_path` expand `~` when `run()` is called (contracts/run-api.md), so every test that omits `config_path` or `db_path` resolves under `tmp_path`, never the real `~/.config/monero-income/config.toml` or `~/.local/share/monero-income/xmr.db`.
+- [X] T006 Run `uv sync`, then `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports` on the skeleton and fix configuration until they pass (pytest runs from Phase 2 on)
 
 **Checkpoint**: Toolchain installed; static gates pass on an empty package
 
@@ -70,24 +70,24 @@ user story depends on these.
 
 ### Models and errors
 
-- [ ] T007 [P] Create `src/monero_income/primitives/errors.py` holding every primitive error, so no module imports errors from a sibling it depends on:
+- [X] T007 [P] Create `src/monero_income/primitives/errors.py` holding every primitive error, so no module imports errors from a sibling it depends on:
   - `StorageError(Exception)` with subclasses `StorageReadError` (the file can't be opened or read), `StorageWriteError` (an insert failed), and `SchemaTooNewError(found: int)`;
   - `WalletError(Exception)` with subclasses `WalletUnreachableError`, `WalletLoginError`, `WalletResponseError`, and `WalletRpcError(code: int, message: str)`;
   - `ConfigFileError(Exception)`.
-- [ ] T008 [P] Create frozen dataclasses in `src/monero_income/primitives/models.py`:
+- [X] T008 [P] Create frozen dataclasses in `src/monero_income/primitives/models.py`:
   - `IncomingEntry(txid: str, height: int, amount_piconero: int, timestamp: int)`
   - `TransactionRecord(txid: str, height: int, amount_piconero: int, occurred_at: int)` (`occurred_at` is UTC Unix seconds)
-- [ ] T009 [P] Create `RunError(Exception)` in `src/monero_income/orchestration/errors.py`. Docstring: "User-facing failure. str(error) is the complete message, with no 'Error:' prefix." (contracts/run-api.md)
+- [X] T009 [P] Create `RunError(Exception)` in `src/monero_income/orchestration/errors.py`. Docstring: "User-facing failure. str(error) is the complete message, with no 'Error:' prefix." (contracts/run-api.md)
 
 ### Schema and storage
 
-- [ ] T010 [P] Write `tests/unit/test_migrations.py` against `sqlite3.connect(":memory:", autocommit=False)`. Verify that:
+- [X] T010 [P] Write `tests/unit/test_migrations.py` against `sqlite3.connect(":memory:", autocommit=False)`. Verify that:
   - migrating from `user_version` 0 creates table `transactions` and index `transactions_height_idx`, and sets `PRAGMA user_version` to 1;
   - `CHECK (length(txid) = 64)`, `CHECK (height > 0)` and `CHECK (amount_piconero > 0)` reject bad rows;
   - `occurred_date` equals `date(occurred_at, 'unixepoch')` (e.g. `occurred_at=1704067199` → `2023-12-31`, `1704067200` → `2024-01-01`);
   - migrating at version 1 is a no-op;
   - `user_version` 2 raises the newer-schema error.
-- [ ] T011 Implement `src/monero_income/primitives/migrations.py`:
+- [X] T011 Implement `src/monero_income/primitives/migrations.py`:
   - `SCHEMA_VERSION = 1`, and a step list where step 1 creates `transactions` exactly as in data-model.md:
     - `txid TEXT PRIMARY KEY CHECK (length(txid) = 64)`
     - `height INTEGER NOT NULL CHECK (height > 0)`
@@ -97,19 +97,19 @@ user story depends on these.
   - Step 1 also runs `CREATE INDEX transactions_height_idx ON transactions(height)`.
   - `migrate(conn)` reads `PRAGMA user_version`, applies the missing steps and the new `user_version` in one transaction, and commits.
   - A version above `SCHEMA_VERSION` raises `SchemaTooNewError(found)` from `errors.py`.
-- [ ] T012 [P] Write `tests/unit/test_database.py` (in-memory, migrated). Cover:
+- [X] T012 [P] Write `tests/unit/test_database.py` (in-memory, migrated). Cover:
   - `last_recorded_height` returns `None` on an empty table, else the max height;
   - `recorded_txids` returns only the requested txids that exist;
   - `insert_records` inserts and commits one batch;
   - a duplicate txid in a batch raises `StorageWriteError` and leaves no row from that batch;
   - an amount above 9,223,372,036,854,775,807 raises `StorageWriteError` (research R6);
   - existing rows are never updated.
-- [ ] T013 [P] Write `tests/adapters/test_database_files.py` using `tmp_path`:
+- [X] T013 [P] Write `tests/adapters/test_database_files.py` using `tmp_path`:
   - a missing file in a missing directory: `open_database` creates the parent directory and the file, and migrates to version 1;
   - an existing valid database is reopened with its rows intact;
   - an existing file containing `junk` raises `StorageReadError`, and the bytes on disk are unchanged afterwards;
   - a file with `user_version` 2 raises `SchemaTooNewError`.
-- [ ] T014 Implement `src/monero_income/primitives/database.py`, raising errors from `errors.py`:
+- [X] T014 Implement `src/monero_income/primitives/database.py`, raising errors from `errors.py`:
   - `open_database(path: Path, timeout: float = 5.0) -> sqlite3.Connection` (`timeout` is passed to `sqlite3.connect` as the lock wait):
     - if the file is missing: `mkdir(parents=True, exist_ok=True)` on the parent, then connect via URI `file:{path}?mode=rwc`;
     - otherwise connect via `mode=rw`;
@@ -122,13 +122,13 @@ user story depends on these.
 
 ### Wallet RPC adapter
 
-- [ ] T015 [P] Write `tests/unit/test_wallet_entries.py` for `parse_incoming(raw: object) -> list[IncomingEntry]`:
+- [X] T015 [P] Write `tests/unit/test_wallet_entries.py` for `parse_incoming(raw: object) -> list[IncomingEntry]`:
   - valid entries map `txid`/`height`/`amount`/`timestamp`;
   - `None` (absent `in`) → `[]`;
   - these raise `WalletResponseError`: a missing field, a JSON float such as `1.0` where an int is expected, `bool` values, negative numbers, a height of 0, and a txid that isn't 64 hex characters;
   - an uppercase hex txid is normalized to lowercase.
-- [ ] T016 [P] Implement `parse_incoming` in `src/monero_income/primitives/wallet_entries.py` as a pure function. It rejects exactly the cases in data-model.md: "a missing field, a wrong JSON type (including a JSON float where an integer is expected), a negative number, a height of 0, or a txid that isn't 64 hex characters". `WalletResponseError` is imported from `errors.py`.
-- [ ] T017 [P] Write `tests/adapters/test_wallet_rpc_http.py` using `httpx.MockTransport` (no sockets). Cover:
+- [X] T016 [P] Implement `parse_incoming` in `src/monero_income/primitives/wallet_entries.py` as a pure function. It rejects exactly the cases in data-model.md: "a missing field, a wrong JSON type (including a JSON float where an integer is expected), a negative number, a height of 0, or a txid that isn't 64 hex characters". `WalletResponseError` is imported from `errors.py`.
+- [X] T017 [P] Write `tests/adapters/test_wallet_rpc_http.py` using `httpx.MockTransport` (no sockets). Cover:
   - **Requests**: `get_height` posts `{"jsonrpc": "2.0", "id": "0", "method": "get_height", "params": {}}` and returns `result.height`.
   - `get_transfers(lo, hi)` posts exactly these params: `"in": true, "out": false, "pending": false, "failed": false, "pool": false, "filter_by_height": true, "min_height": lo, "max_height": hi`, with no `account_index` or `all_accounts` key (account 0 only, per the spec's Assumptions). The `"out": false` assertion is the test for FR-003 and US1 scenario 2. It returns the raw `in` list, or `None` when absent.
   - **Auth**: with a username, a `401` digest challenge is answered and the retried request succeeds. A final `401` raises `WalletLoginError`.
@@ -141,7 +141,7 @@ user story depends on these.
     - a JSON-RPC `error` object → `WalletRpcError` with `code` and `message`.
   - **Password**: the configured password never appears in `str()` of any raised error.
   - **Timeout**: the client uses a 20-second timeout.
-- [ ] T018 Implement `src/monero_income/primitives/wallet_rpc.py`:
+- [X] T018 Implement `src/monero_income/primitives/wallet_rpc.py`:
   - `WalletRpc(Protocol)` with `get_height() -> int` and `get_transfers(min_height: int, max_height: int) -> TransfersResponse`.
   - `TransfersResponse` (frozen dataclass) holding the raw `incoming: object`.
   - Raises the wallet errors from `errors.py`.
@@ -153,16 +153,16 @@ user story depends on these.
 
 ### Configuration and settings
 
-- [ ] T019 [P] Write `tests/adapters/test_config_file.py` using `tmp_path`:
+- [X] T019 [P] Write `tests/adapters/test_config_file.py` using `tmp_path`:
   - a missing file → `None`;
   - valid TOML → its mapping and the file's `st_mode`;
   - invalid TOML → `ConfigFileError` whose message names the path and the parse location but contains no file contents (put a password in the bad file and assert it's absent);
   - an unreadable file (`chmod 000`, skipped when running as root) → `ConfigFileError`.
-- [ ] T020 [P] Implement `src/monero_income/primitives/config_file.py`:
+- [X] T020 [P] Implement `src/monero_income/primitives/config_file.py`:
   - raises `ConfigFileError` from `errors.py`;
   - `RawConfig(values: Mapping[str, object], mode: int)`;
   - `read_config(path: Path) -> RawConfig | None`, using `tomllib`. It only reads the file and its mode, with no validation (constitution IV).
-- [ ] T021 [P] Write `tests/unit/test_settings.py` for `resolve_settings`. Cover:
+- [X] T021 [P] Write `tests/unit/test_settings.py` for `resolve_settings`. Cover:
   - **Precedence**: option over file over default, for `rpc_url`, `username` and `db_path`.
   - **Defaults**: `rpc_url` `http://127.0.0.1:18088/json_rpc` and `db_path` `~/.local/share/monero-income/xmr.db` (with `~` expanded).
   - **`rpc_url` validation**: the scheme must be `http` or `https`, it must have a host, and it must not contain user info such as `http://u:p@h/json_rpc`.
@@ -174,7 +174,7 @@ user story depends on these.
   - **Keys**: an unknown key returns a warning naming the key; a known key of the wrong type raises `RunError` (`invalid <key>: …`).
   - **Permissions**: `is_readable_by_others(0o100644)` is True and `is_readable_by_others(0o100600)` is False.
   - **Password secrecy**: no error or warning text contains the password value.
-- [ ] T022 Implement `src/monero_income/orchestration/settings.py`, all pure:
+- [X] T022 Implement `src/monero_income/orchestration/settings.py`, all pure:
   - `CliOptions(rpc_url: str | None = None, username: str | None = None, db_path: str | None = None)` (frozen).
   - `Settings(rpc_url: str, username: str | None, password: str | None, db_path: Path)` (frozen; `repr` must hide `password`, e.g. `field(repr=False)`).
   - `default_config_path() -> Path`, returning `Path("~/.config/monero-income/config.toml").expanduser()` evaluated at call time (not import time). The default `db_path` is also expanded inside `resolve_settings`, so redirecting `HOME` redirects both.
@@ -184,7 +184,7 @@ user story depends on these.
 
 ### Test double
 
-- [ ] T023 [P] Implement `FakeWalletRpc` in `tests/fakes/wallet.py`:
+- [X] T023 [P] Implement `FakeWalletRpc` in `tests/fakes/wallet.py`:
   - holds a list of raw `in` entry dicts and a `height`;
   - `get_transfers(min_height, max_height)` returns the entries with `min_height < height <= max_height` (exclusive min, as in research R5) and logs each call's bounds;
   - `fail_on_call: int | None` and `failure: BaseException` raise on the Nth `get_transfers` call, which can also be `KeyboardInterrupt`;
