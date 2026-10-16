@@ -73,3 +73,12 @@ def test_help_has_no_password_option_and_no_subcommands() -> None:
     assert "--rpc-url" in result.stdout
     assert "--password" not in result.stdout
     assert "Commands" not in result.stdout
+
+
+def test_nothing_new_prints_no_new_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(0))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert result.stdout == "No new transactions found.\n"

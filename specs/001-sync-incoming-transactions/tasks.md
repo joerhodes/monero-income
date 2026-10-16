@@ -277,26 +277,26 @@ entry above the last height; a third run adds only it.
 
 ### Tests for User Story 2 ⚠️ (write first, confirm they fail)
 
-- [ ] T033 [P] [US2] Add these tests to `tests/unit/test_transform.py`:
+- [X] T033 [P] [US2] Add these tests to `tests/unit/test_transform.py`:
   - `first_window_start(None) == 0`, `first_window_start(30) == 0` and `first_window_start(1000) == 939` (`max(last - 61, 0)`: the 60-block overlap is inclusive and `min_height` is exclusive, research R5);
   - `select_new` drops records whose txid is in the recorded set and keeps order.
-- [ ] T034 [P] [US2] Write `tests/integration/test_resync.py`, using a `tmp_path` database file shared by every `run()` call in a test. Assert:
+- [X] T034 [P] [US2] Write `tests/integration/test_resync.py`, using a `tmp_path` database file shared by every `run()` call in a test. Assert:
   - **No changes (US2-1)**: a second run returns `recorded == 0`, and `SELECT * FROM transactions ORDER BY txid` is identical before and after.
   - **New entry (US2-2)**: an entry added above the last height is the only addition.
   - **Overlap**: an entry already recorded at height H, reported again by the fake at H-30 (a reorg), is not duplicated, and its stored row is unchanged.
   - **Resume position**: the fake's first logged window on the second run starts at `last_height - 61`.
   - **Empty wallet**: `recorded == 0`.
-- [ ] T035 [P] [US2] Add to `tests/cli/test_cli_success.py`: `SyncResult(0)` prints exactly `No new transactions found.` and exits 0 (FR-011).
-- [ ] T036 [P] [US2] Write `tests/integration/test_performance.py` (SC-006). With 10,000 rows pre-inserted into a `tmp_path` database file (via `open_database` and `insert_records`, then closed) and a fake that reports nothing new, `run()` completes in under 5 seconds (`time.perf_counter`), not counting fake time.
+- [X] T035 [P] [US2] Add to `tests/cli/test_cli_success.py`: `SyncResult(0)` prints exactly `No new transactions found.` and exits 0 (FR-011).
+- [X] T036 [P] [US2] Write `tests/integration/test_performance.py` (SC-006). With 10,000 rows pre-inserted into a `tmp_path` database file (via `open_database` and `insert_records`, then closed) and a fake that reports nothing new, `run()` completes in under 5 seconds (`time.perf_counter`), not counting fake time.
 
 ### Implementation for User Story 2
 
-- [ ] T037 [US2] Add `OVERLAP_BLOCKS = 60`, `first_window_start(last_height: int | None) -> int` and `select_new(records, recorded_txids: set[str]) -> list[TransactionRecord]` to `src/monero_income/orchestration/transform.py` (pure).
-- [ ] T038 [US2] Update `sync()` in `src/monero_income/orchestration/sync.py` to:
+- [X] T037 [US2] Add `OVERLAP_BLOCKS = 60`, `first_window_start(last_height: int | None) -> int` and `select_new(records, recorded_txids: set[str]) -> list[TransactionRecord]` to `src/monero_income/orchestration/transform.py` (pure).
+- [X] T038 [US2] Update `sync()` in `src/monero_income/orchestration/sync.py` to:
   - use `start_after = first_window_start(last_recorded_height(conn))`;
   - per window, filter with `select_new(records, recorded_txids(conn, [r.txid for r in records]))` before `insert_records`;
   - skip the insert when nothing is new.
-- [ ] T039 [US2] Update `src/monero_income/cli.py` to print `No new transactions found.` when `recorded == 0` (makes T033–T036 pass).
+- [X] T039 [US2] Update `src/monero_income/cli.py` to print `No new transactions found.` when `recorded == 0` (makes T033–T036 pass).
 
 **Checkpoint**: US1 and US2 both pass; repeated runs are idempotent
 
@@ -315,14 +315,14 @@ identical to a single uninterrupted run on a fresh database.
 
 ### Tests for User Story 3 ⚠️ (write first, confirm they fail)
 
-- [ ] T040 [P] [US3] Write `tests/integration/test_interruption.py`, using `tmp_path` database files:
+- [X] T040 [P] [US3] Write `tests/integration/test_interruption.py`, using `tmp_path` database files:
   - **Wallet failure (US3-1, SC-004)**: `fail_on_call=3` with `WalletUnreachableError` raises `RunError`, and only windows 1–2 are stored. The next run's table equals a fresh uninterrupted run's table.
   - **Ctrl-C**: `fail_on_call=2` with `KeyboardInterrupt` propagates `KeyboardInterrupt`. Reopening the file with `open_database` succeeds (no lock is left behind) and shows window 1's rows and nothing from window 2.
   - **Partial window (FR-013)**: the third window holds one normal entry and one at 9,223,372,036,854,775,808 piconero, which overflows on insert. `run()` raises `RunError`; neither of that window's rows is stored, and windows 1–2 stay.
-- [ ] T041 [P] [US3] Write `tests/integration/test_concurrent_run.py` (spec edge case "Second run started while one is in progress"). On a `tmp_path` database with recorded rows, a second connection runs `BEGIN IMMEDIATE` and holds the write lock while `run()` is called with `connect=lambda p: open_database(p, timeout=0.1)` and a fake that reports one new entry. Assert:
+- [X] T041 [P] [US3] Write `tests/integration/test_concurrent_run.py` (spec edge case "Second run started while one is in progress"). On a `tmp_path` database with recorded rows, a second connection runs `BEGIN IMMEDIATE` and holds the write lock while `run()` is called with `connect=lambda p: open_database(p, timeout=0.1)` and a fake that reports one new entry. Assert:
   - `run()` raises `RunError` containing `cannot write to database` (or `cannot read database` if the lock hits at open);
   - after the holder rolls back, the previously recorded rows are intact and unchanged.
-- [ ] T042 [P] [US3] Write `tests/integration/test_errors.py`. Each case raises `RunError` whose message contains the contracts/cli.md category phrase:
+- [X] T042 [P] [US3] Write `tests/integration/test_errors.py`. Each case raises `RunError` whose message contains the contracts/cli.md category phrase:
   - `cannot reach the wallet at` (unreachable);
   - `rejected the login` (login);
   - `the wallet returned an error` (`WalletRpcError`);
@@ -335,7 +335,7 @@ identical to a single uninterrupted run on a fresh database.
   - `invalid rpc_url`.
 
   Across all cases, assert that the distinctive password `pw-Zq9!secret` never appears in any message and that no message contains `transfer` (case-insensitive).
-- [ ] T043 [P] [US3] Write `tests/cli/test_cli_errors.py` with `CliRunner`, monkeypatching `run`:
+- [X] T043 [P] [US3] Write `tests/cli/test_cli_errors.py` with `CliRunner`, monkeypatching `run`:
   - `RunError("x")` → stderr `Error: x`, exit 1;
   - `KeyboardInterrupt` → `Error: interrupted; anything already recorded was kept`, exit 130;
   - `ValueError("boom")` → `Error: unexpected ValueError: boom`, exit 1;
@@ -345,8 +345,8 @@ identical to a single uninterrupted run on a fresh database.
 
 ### Implementation for User Story 3
 
-- [ ] T044 [US3] Update `sync()` in `src/monero_income/orchestration/sync.py`: wrap each window in `try/except BaseException: conn.rollback(); raise`, so an interruption or error mid-window leaves no open transaction and no partial window. Windows already committed stay.
-- [ ] T045 [US3] Update `run()` in `src/monero_income/orchestration/run.py` to translate primitive errors into `RunError`, using the contracts/cli.md wording:
+- [X] T044 [US3] Update `sync()` in `src/monero_income/orchestration/sync.py`: wrap each window in `try/except BaseException: conn.rollback(); raise`, so an interruption or error mid-window leaves no open transaction and no partial window. Windows already committed stay.
+- [X] T045 [US3] Update `run()` in `src/monero_income/orchestration/run.py` to translate primitive errors into `RunError`, using the contracts/cli.md wording:
   - `ConfigFileError` → `cannot read config file <path>: <reason>`;
   - `SchemaTooNewError` → `database <path> was written by a newer version of monero-income (schema N)`;
   - `StorageReadError` → `cannot read database <path>: <reason>. The file was not changed.`;
@@ -357,7 +357,7 @@ identical to a single uninterrupted run on a fresh database.
   - `WalletResponseError` → `unexpected response from the wallet: <reason>`.
 
   Let `KeyboardInterrupt` propagate. Make sure no message includes the password or "transfer".
-- [ ] T046 [US3] Update `src/monero_income/cli.py` to wrap the `run()` call:
+- [X] T046 [US3] Update `src/monero_income/cli.py` to wrap the `run()` call:
   - `RunError` → `Error: <message>` on stderr, `raise typer.Exit(1)`;
   - `KeyboardInterrupt` → `Error: interrupted; anything already recorded was kept`, exit 130;
   - any other `Exception` → `Error: unexpected <TypeName>: <message>`, exit 1.

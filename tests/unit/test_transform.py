@@ -1,6 +1,11 @@
 import itertools
 
-from monero_income.orchestration.transform import combine_by_txid, fetch_windows
+from monero_income.orchestration.transform import (
+    combine_by_txid,
+    fetch_windows,
+    first_window_start,
+    select_new,
+)
 from monero_income.primitives.models import IncomingEntry, TransactionRecord
 
 A = "a" * 64
@@ -53,3 +58,22 @@ def test_combine_orders_by_ascending_height() -> None:
 
     assert [record.height for record in combine_by_txid(entries)] == [10, 20, 30]
     assert combine_by_txid([]) == []
+
+
+def test_first_window_start_overlaps_60_blocks_inclusive() -> None:
+    # min_height is exclusive, so starting after last - 61 re-reads last - 60 .. last.
+    assert first_window_start(None) == 0
+    assert first_window_start(30) == 0
+    assert first_window_start(1000) == 939
+
+
+def test_select_new_drops_recorded_txids_and_keeps_order() -> None:
+    records = [
+        TransactionRecord(txid=A, height=10, amount_piconero=1, occurred_at=1),
+        TransactionRecord(txid=B, height=20, amount_piconero=2, occurred_at=2),
+        TransactionRecord(txid=C, height=30, amount_piconero=3, occurred_at=3),
+    ]
+
+    assert select_new(records, {B}) == [records[0], records[2]]
+    assert select_new(records, set()) == records
+    assert select_new(records, {A, B, C}) == []

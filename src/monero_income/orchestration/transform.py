@@ -1,10 +1,22 @@
 """Pure steps of a sync: which height windows to fetch, and how entries become records."""
 
-from collections.abc import Sequence
+from collections.abc import Sequence, Set
 
 from monero_income.primitives.models import IncomingEntry, TransactionRecord
 
 WINDOW_SIZE = 10_000  # blocks, about 14 days (research R2)
+OVERLAP_BLOCKS = 60  # re-read below the last recorded height, to catch reorgs
+
+
+def first_window_start(last_height: int | None) -> int:
+    """Where a sync starts: just below ``last_height - OVERLAP_BLOCKS``, or 0 on a first run.
+
+    The wallet's ``min_height`` is exclusive, so starting after ``last - 61`` re-reads
+    ``last - 60`` through ``last`` inclusive (research R5).
+    """
+    if last_height is None:
+        return 0
+    return max(last_height - OVERLAP_BLOCKS - 1, 0)
 
 
 def fetch_windows(start_after: int, wallet_height: int) -> list[tuple[int, int]]:
@@ -42,3 +54,10 @@ def combine_by_txid(entries: Sequence[IncomingEntry]) -> list[TransactionRecord]
                 occurred_at=existing.occurred_at,
             )
     return sorted(combined.values(), key=lambda record: (record.height, record.txid))
+
+
+def select_new(
+    records: Sequence[TransactionRecord], recorded_txids: Set[str]
+) -> list[TransactionRecord]:
+    """Drop records whose txid is already recorded, keeping order."""
+    return [record for record in records if record.txid not in recorded_txids]
