@@ -209,7 +209,7 @@ txids.
 
 ### Tests for User Story 1 ⚠️ (write first, confirm they fail)
 
-- [ ] T024 [P] [US1] Write the window and combine tests in `tests/unit/test_transform.py`:
+- [X] T024 [P] [US1] Write the window and combine tests in `tests/unit/test_transform.py`:
   - **Windows**:
     - `fetch_windows(0, 25000) == [(0, 10000), (10000, 20000), (20000, 25000)]`;
     - `fetch_windows(0, 0) == []`;
@@ -218,33 +218,33 @@ txids.
   - **Combine**:
     - `combine_by_txid` sums amounts for a repeated txid (e.g. `400000000000 + 123456789012`) and keeps height/timestamp;
     - it returns one `TransactionRecord` per txid in ascending height order.
-- [ ] T025 [P] [US1] Write `tests/integration/test_first_sync.py`. It calls `run()` with `config_path=tmp_path/"absent.toml"`, a `wallet_factory` returning a `FakeWalletRpc`, and `db_path` set to a `tmp_path` file through the real `open_database`, so the rows can be inspected after `run()` closes its connection. Fake height 25000; entries at heights 5, 10000, 10001 and 24999, one txid split over two subaddresses. Assert:
+- [X] T025 [P] [US1] Write `tests/integration/test_first_sync.py`. It calls `run()` with `config_path=tmp_path/"absent.toml"`, a `wallet_factory` returning a `FakeWalletRpc`, and `db_path` set to a `tmp_path` file through the real `open_database`, so the rows can be inspected after `run()` closes its connection. Fake height 25000; entries at heights 5, 10000, 10001 and 24999, one txid split over two subaddresses. Assert:
   - all distinct txids are stored with exact `height`, `amount_piconero` and `occurred_at`, including `123456789012` stored exactly (US1-4);
   - `occurred_date` is the UTC date;
   - `SyncResult.recorded` is correct;
   - the fake saw windows `(0,10000]`, `(10000,20000]`, `(20000,25000]`.
 
   FR-003 and US1 scenario 2 (only incoming recorded) are covered by T017's `"out": false` assertion; the fake holds only incoming entries.
-- [ ] T026 [P] [US1] Write `tests/integration/test_persistence.py` using `tmp_path` and the real `open_database`. After a first `run()`, a second `open_database` on the same path sees identical rows (US1-3, FR-016). A `db_path` in a missing directory is created.
-- [ ] T027 [P] [US1] Write `tests/cli/test_cli_success.py` with `typer.testing.CliRunner`, monkeypatching `monero_income.cli.run` to capture `CliOptions` and return a `SyncResult`. Assert:
+- [X] T026 [P] [US1] Write `tests/integration/test_persistence.py` using `tmp_path` and the real `open_database`. After a first `run()`, a second `open_database` on the same path sees identical rows (US1-3, FR-016). A `db_path` in a missing directory is created.
+- [X] T027 [P] [US1] Write `tests/cli/test_cli_success.py` with `typer.testing.CliRunner`, monkeypatching `monero_income.cli.run` to capture `CliOptions` and return a `SyncResult`. Assert:
   - the stdout line is exactly `Recorded 1 new transaction.` for 1 and `Recorded 3 new transactions.` for 3, with exit 0;
   - `--rpc-url`, `--username` and `--db-path` map onto `CliOptions`;
   - `--help` shows no `--password` option and no subcommands (FR-001, FR-018).
 
 ### Implementation for User Story 1
 
-- [ ] T028 [US1] Implement in `src/monero_income/orchestration/transform.py`:
+- [X] T028 [US1] Implement in `src/monero_income/orchestration/transform.py`:
   - `WINDOW_SIZE = 10_000`;
   - `fetch_windows(start_after: int, wallet_height: int) -> list[tuple[int, int]]`: ascending consecutive `(lo, hi]` windows covering `start_after < h <= wallet_height`;
   - `combine_by_txid(entries: Sequence[IncomingEntry]) -> list[TransactionRecord]`.
 
   All pure (makes T024 pass).
-- [ ] T029 [US1] Implement `sync(conn: sqlite3.Connection, wallet: WalletRpc) -> int` in `src/monero_income/orchestration/sync.py`:
+- [X] T029 [US1] Implement `sync(conn: sqlite3.Connection, wallet: WalletRpc) -> int` in `src/monero_income/orchestration/sync.py`:
   - `start_after = 0` (first run; US2 replaces this with the resume position);
   - `height = wallet.get_height()`;
   - for each window from `fetch_windows`, in order: `get_transfers(lo, hi)` → `parse_incoming` → `combine_by_txid` → `insert_records` (commits that window);
   - return the total inserted.
-- [ ] T030 [US1] Implement `run()` in `src/monero_income/orchestration/run.py` with the exact signature from contracts/run-api.md. It:
+- [X] T030 [US1] Implement `run()` in `src/monero_income/orchestration/run.py` with the exact signature from contracts/run-api.md. It:
   - uses `config_path or default_config_path()`, calls `read_config` on it, then `resolve_settings`, sending each warning to `reporter.warning` immediately;
   - opens `conn = connect(settings.db_path)`;
   - builds `wallet = wallet_factory(settings)`;
@@ -252,8 +252,8 @@ txids.
   - returns `SyncResult(recorded)`.
 
   Also define `Reporter(Protocol)` with `warning(message: str) -> None`, `SyncResult(recorded: int)` (frozen), and the default factory `make_wallet(settings) -> WalletRpc`, which returns `HttpWalletRpc(settings.rpc_url, settings.username, settings.password)`.
-- [ ] T031 [US1] Export `run`, `CliOptions`, `Reporter`, `SyncResult` and `RunError` from `src/monero_income/orchestration/__init__.py`. Nothing else is public.
-- [ ] T032 [US1] Implement `src/monero_income/cli.py`:
+- [X] T031 [US1] Export `run`, `CliOptions`, `Reporter`, `SyncResult` and `RunError` from `src/monero_income/orchestration/__init__.py`. Nothing else is public.
+- [X] T032 [US1] Implement `src/monero_income/cli.py`:
   - a Typer app with `pretty_exceptions_enable=False` and a single command (no subcommands) taking options `--rpc-url`, `--username` and `--db-path` (no `--password`);
   - it builds `CliOptions`, passes a stderr reporter that prints `Warning: <message>`, and calls `run()`;
   - it prints `Recorded 1 new transaction.` or `Recorded N new transactions.` to stdout;
