@@ -43,7 +43,7 @@ on its own.
 
 **Purpose**: Confirm the starting point
 
-- [ ] T001 On branch `002-usd-valuation`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. No new dependencies are needed (plan.md).
+- [X] T001 On branch `002-usd-valuation`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. No new dependencies are needed (plan.md).
 
 ---
 
@@ -56,7 +56,7 @@ test doubles. Every story depends on these.
 
 ### Errors and models
 
-- [ ] T002 [P] Add to `src/monero_income/primitives/errors.py`:
+- [X] T002 [P] Add to `src/monero_income/primitives/errors.py`:
   - `PriceSourceError(Exception)` with subclasses:
     - `PriceRateLimitedError(retry_after: float | None)`
     - `PriceKeyRejectedError`
@@ -64,20 +64,20 @@ test doubles. Every story depends on these.
   - `ImportFileError(line: int | None, reason: str)`, whose message is `line <n>: <reason>`, or just `<reason>` when `line` is `None`.
 
   No message may include an API key (contracts/price-source.md).
-- [ ] T003 [P] Add frozen dataclasses to `src/monero_income/primitives/models.py`:
+- [X] T003 [P] Add frozen dataclasses to `src/monero_income/primitives/models.py`:
   - `DailyPrice(date_utc: date, usd_price: Decimal, status: Literal["provisional", "final"], source: Literal["api", "import"], fetched_at: int)`
   - `PriceNeed(date_utc: date, has_provisional: bool)`
   - `ImportRow(line: int, date_utc: date, usd_price: Decimal)`
 
 ### Schema v2 and price storage
 
-- [ ] T004 [P] Add to `tests/unit/test_migrations.py`:
+- [X] T004 [P] Add to `tests/unit/test_migrations.py`:
   - **Migrating from version 1:** build a version-1 database with step 1's SQL and transaction rows, then call `migrate`. Expect `user_version` 2, the rows intact, and `daily_prices` present and empty.
   - **Migrating from 0:** expect version 2.
   - **Table checks:** `daily_prices` rejects `date_utc` values that don't match `GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'`, and rejects `status` outside `('provisional', 'final')` and `source` outside `('api', 'import')`.
   - **Triggers:** updating a row whose `status = 'final'` raises `sqlite3.IntegrityError` ("final price is immutable"); updating a provisional row succeeds; deleting any row raises.
   - **Newer schema:** version 3 is refused.
-- [ ] T005 Add migration step 2 to `_STEPS` in `src/monero_income/primitives/migrations.py`, exactly as in data-model.md, so `SCHEMA_VERSION` becomes 2:
+- [X] T005 Add migration step 2 to `_STEPS` in `src/monero_income/primitives/migrations.py`, exactly as in data-model.md, so `SCHEMA_VERSION` becomes 2:
   - `CREATE TABLE daily_prices` with these columns:
     - `date_utc TEXT PRIMARY KEY CHECK (date_utc GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]')`
     - `usd_price TEXT NOT NULL`
@@ -86,18 +86,18 @@ test doubles. Every story depends on these.
     - `fetched_at INTEGER NOT NULL`
   - Trigger `daily_prices_final_no_update` (`BEFORE UPDATE ON daily_prices WHEN OLD.status = 'final'`, which runs `SELECT RAISE(ABORT, 'final price is immutable')`).
   - Trigger `daily_prices_no_delete` (`BEFORE DELETE ON daily_prices`, which runs `SELECT RAISE(ABORT, 'prices are never deleted')`).
-- [ ] T006 Update feature 001's schema-version expectations for version 2:
+- [X] T006 Update feature 001's schema-version expectations for version 2:
   - in `tests/unit/test_migrations.py`, `SCHEMA_VERSION == 2` and `user_version == 2`; the newer-schema test uses 3;
   - in `tests/adapters/test_database_files.py`, a new database migrates to version 2 and the newer-schema case uses `user_version` 3;
   - in `tests/integration/test_errors.py`, `test_newer_schema` sets `user_version` 3.
-- [ ] T007 [P] Write `tests/unit/test_prices_db.py` (in-memory, migrated). Cover:
+- [X] T007 [P] Write `tests/unit/test_prices_db.py` (in-memory, migrated). Cover:
   - `price_needs` returns one `PriceNeed` per distinct `transactions.occurred_date` with no price or a provisional one (`has_provisional` set accordingly), ascending, and omits final days;
   - `upsert_price` inserts, replaces a provisional row, leaves a final row unchanged (the conditional upsert does nothing), and commits;
   - `priced_days` returns the requested dates that have any price;
   - `insert_imported` inserts all rows in one transaction and rolls back all of them if any conflicts (`StorageWriteError`);
   - `all_days_final` is True only when at least one transaction is recorded and every transaction day has a final price (False for an empty database);
   - prices round-trip exactly, e.g. `Decimal("152.3456")` and `Decimal("0.000000012345678901234567890123")`, with no exponent in the stored text.
-- [ ] T008 Implement `src/monero_income/primitives/prices_db.py`. I/O only; errors are `StorageWriteError` from `errors.py`.
+- [X] T008 Implement `src/monero_income/primitives/prices_db.py`. I/O only; errors are `StorageWriteError` from `errors.py`.
   - `price_needs(conn) -> list[PriceNeed]`.
   - `upsert_price(conn, price: DailyPrice) -> None`: `INSERT … ON CONFLICT(date_utc) DO UPDATE SET usd_price=excluded.usd_price, status=excluded.status, source=excluded.source, fetched_at=excluded.fetched_at WHERE daily_prices.status = 'provisional'`, then commit; roll back on error.
   - `priced_days(conn, days: Sequence[date]) -> set[date]`.
@@ -107,7 +107,7 @@ test doubles. Every story depends on these.
 
 ### Settings
 
-- [ ] T009 [P] Add tests to `tests/unit/test_settings.py` for the new keys (contracts/config.md). Cover:
+- [X] T009 [P] Add tests to `tests/unit/test_settings.py` for the new keys (contracts/config.md). Cover:
   - **Defaults:**
     - `coingecko_url` is `https://api.coingecko.com/api/v3`, or `https://pro-api.coingecko.com/api/v3` when the key type is `pro`;
     - an explicit URL wins;
@@ -124,7 +124,7 @@ test doubles. Every story depends on these.
     - `min_request_delay` accepts a TOML int or float, `0 ≤ value ≤ 60`, and is converted with `Decimal(str(value))`; a string or a negative value is invalid;
     - `CliOptions.import_prices` is passed through.
   - **Key secrecy:** the key never appears in `repr(settings)`, in warnings, or in any `RunError`.
-- [ ] T010 Extend `src/monero_income/orchestration/settings.py`:
+- [X] T010 Extend `src/monero_income/orchestration/settings.py`:
   - add `coingecko_url`, `coin_id`, `coingecko_api_key`, `coingecko_api_key_type`, and `min_request_delay` to `KNOWN_KEYS`;
   - give `CliOptions` the fields `import_prices`, `coingecko_api_key`, and `coingecko_api_key_type` (all `str | None = None`);
   - give `Settings` the fields `coingecko_url: str`, `coin_id: str`, `api_key: str | None` (`field(repr=False)`), `api_key_type: Literal["demo", "pro"] | None`, `min_request_delay: Decimal | None`, and `import_prices: Path | None`, with defaults so feature 001's settings tests still construct `Settings`;
@@ -134,7 +134,7 @@ test doubles. Every story depends on these.
 
 ### Pure valuation rules
 
-- [ ] T011 [P] Write `tests/unit/test_valuation.py`. Cover:
+- [X] T011 [P] Write `tests/unit/test_valuation.py`. Cover:
   - `history_cutoff(date(2026, 10, 17)) == date(2025, 10, 18)` (364 days);
   - `plan_lookups(needs, today)` splits into `requestable`, ascending (FR-024), and `too_old`, which includes provisional days older than the cutoff;
   - `settled_at(date(2026, 10, 16)) == datetime(2026, 10, 17, 1, 0, tzinfo=UTC)`;
@@ -147,16 +147,16 @@ test doubles. Every story depends on these.
 
 ### Price answers (shared by the client, pricing, and the fakes)
 
-- [ ] T012 [P] Write `tests/unit/test_price_parse.py` for `parse_history_price(body)` and the answer types `Price(usd_price: Decimal)`, `NoPrice(reason: str)`, and `OutsideHistory()`:
+- [X] T012 [P] Write `tests/unit/test_price_parse.py` for `parse_history_price(body)` and the answer types `Price(usd_price: Decimal)`, `NoPrice(reason: str)`, and `OutsideHistory()`:
   - `{"market_data": {"current_price": {"usd": Decimal("152.3456")}}}` → `Price(Decimal("152.3456"))`;
   - an `int` `152` → `Price(Decimal(152))`;
   - missing `market_data`, `current_price`, or `usd` → `NoPrice`;
   - `True`, `0`, negative values, a string, `Decimal("NaN")`, and `Decimal("Infinity")` → `NoPrice("invalid price")` (FR-016).
-- [ ] T013 Implement `src/monero_income/primitives/price_parse.py`, pure: the `Price`, `NoPrice`, and `OutsideHistory` frozen dataclasses, the type alias `PriceAnswer = Price | NoPrice | OutsideHistory`, and `parse_history_price(body: object) -> Price | NoPrice` per contracts/price-source.md step 5. This makes T012 pass.
+- [X] T013 Implement `src/monero_income/primitives/price_parse.py`, pure: the `Price`, `NoPrice`, and `OutsideHistory` frozen dataclasses, the type alias `PriceAnswer = Price | NoPrice | OutsideHistory`, and `parse_history_price(body: object) -> Price | NoPrice` per contracts/price-source.md step 5. This makes T012 pass.
 
 ### Test doubles
 
-- [ ] T014 Create the test doubles:
+- [X] T014 Create the test doubles:
   - `tests/fakes/price_source.py`: `FakePriceSource`, holding a map `date → PriceAnswer | BaseException`. An exception is raised once, then removed unless `repeat=True`. It records requested dates in `requests`, and returns `NoPrice("no price for this date")` for unmapped days.
   - `tests/fakes/clock.py`: `FakeClock`, holding a settable aware-UTC `now` that is callable as `clock()`, and `RecordingSleep`, whose `__call__(seconds)` appends to `calls` and advances an optional linked `FakeClock`.
 

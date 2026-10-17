@@ -52,3 +52,39 @@ class WalletRpcError(WalletError):
 
 class ConfigFileError(Exception):
     """The config file exists but could not be read or parsed."""
+
+
+class PriceSourceError(Exception):
+    """The price source couldn't answer. Messages never include the API key."""
+
+
+class PriceRateLimitedError(PriceSourceError):
+    """The price source refused the request because of its rate limit (HTTP 429)."""
+
+    def __init__(self, retry_after: float | None) -> None:
+        super().__init__("the price source is rate-limiting requests")
+        self.retry_after = retry_after
+
+
+class PriceKeyRejectedError(PriceSourceError):
+    """The price source rejected the API key (HTTP 401 other than "outside history")."""
+
+    def __init__(self) -> None:
+        super().__init__("the price source rejected the API key")
+
+
+class PriceUnavailableError(PriceSourceError):
+    """The price source couldn't be reached or answered with an unusable response."""
+
+    def __init__(self, reason: str) -> None:
+        super().__init__(reason)
+        self.reason = reason
+
+
+class ImportFileError(Exception):
+    """A price import file is unreadable or invalid; the whole file is rejected."""
+
+    def __init__(self, line: int | None, reason: str) -> None:
+        super().__init__(f"line {line}: {reason}" if line is not None else reason)
+        self.line = line
+        self.reason = reason
