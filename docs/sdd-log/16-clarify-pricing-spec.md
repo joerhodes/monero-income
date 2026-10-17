@@ -146,3 +146,51 @@ Coverage
 └───────────────────────────────────────────────────┴──────────────────────────────────────┘
 
 Check during planning: SC-012 combined with SC-007 means a full year of prices can't be fetched one day at a time with slow pacing. The source and lookup method planning picks need to meet both.
+
+## Prompt for pricing import
+Update specs/002-usd-valuation/spec.md, User Story 4 and FR-019/FR-020:
+- Import reads a CSV file with a header row and two columns, date_utc
+  (YYYY-MM-DD) and usd_price (USD per 1 XMR), not a previous database.
+- Imported prices are recorded only for days older than the price
+  source's history period that have no recorded price; days inside the
+  period are always priced by the source. Imported prices are final.
+- A file with any invalid row (bad date, missing or non-positive price,
+  duplicate date) is rejected as a whole: nothing is recorded, and the
+  error names the first bad row.
+- Rows for days that already have a price, or that are inside the
+  history period, are skipped and counted in the run's report.
+- The import is requested with an option on the main command; the run
+  then continues as normal.
+Add a Clarifications entry. Change nothing else.
+
+## What Came Back
+I updated User Story 4, FR-019 and FR-020 for the CSV import, and added a Clarifications entry. Nothing else in the spec changed.
+
+- User Story 4 is now "Import prices from a CSV file":
+  - Independent test: five rows. Two old, unpriced days get imported final prices. Three rows 
+    (an already-priced day and two recent days) are skipped and counted. The recent days are  
+    priced by the source.                                                                     
+  - Scenarios:                                                                                
+    i. Old, unpriced days are imported as final.                                              
+    ii. A day that already has a price is skipped and counted, and the price is unchanged.    
+    iii. A day inside the history period is skipped and counted, then priced by the source.
+    iv. Any invalid row rejects the whole file. The error names the first bad row, and the run fails before any lookups.
+    v. Importing the same file again records nothing.
+    vi. A failed sync means no import.
+- FR-019:
+  - The option goes on the main command.
+  - The file has a header row with date_utc (YYYY-MM-DD) and usd_price (USD per 1 XMR).
+  - The import runs after a successful sync and before lookups, then the run continues as normal.
+  - Prices are recorded, as final, only for days older than the history period that have no price.
+  - Every other row is skipped and never replaces a price. The run reports how many prices it imported and how many rows it skipped.
+- FR-020: a file with an invalid row is rejected as a whole. That covers a bad date, a missing or non-positive price, or a repeated date. I also counted a missing or wrong header, or an unreadable file, as rejections. The error names the first bad row (or the header or file problem), nothing is recorded, and the run fails before any lookups.
+
+Two choices I made that you didn't specify:
+- Rejecting a missing header or an unreadable file. Your list covered invalid rows only; these seemed to fall under the same rule.
+- A single "skipped" count. Already-priced days and recent days are counted together, not separately. Say if you want them reported separately.
+
+One stale line I didn't touch: the Assumptions section still says "The previous xmr-income-report database format is the one the original tool writes…" That no longer fits the CSV import. It could be replaced with a CSV assumption or deleted; I left it because you asked me not to change anything else. The earlier Clarifications entry about the import option still names "an xmr-income-report database." I left it as history; the new entry says it supersedes that wording.
+
+
+## Notes
+I manually removed the stale assumption.
