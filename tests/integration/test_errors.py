@@ -104,7 +104,7 @@ def test_write_failure(tmp_path: Path) -> None:
 def test_newer_schema(tmp_path: Path) -> None:
     db_path = tmp_path / "xmr.db"
     raw = sqlite3.connect(db_path)
-    raw.execute("PRAGMA user_version = 2")
+    raw.execute("PRAGMA user_version = 3")
     raw.commit()
     raw.close()
 
