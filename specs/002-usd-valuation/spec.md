@@ -47,6 +47,14 @@ price yet and never replace a recorded price."
 - Q: What happens on an error during pricing that isn't a price-source problem (for example, a
   storage error)? → A: The run ends with a message and a failure status, as in feature 001.
   Only price-source problems leave the run successful.
+- Q: How should the user start the optional price import from an xmr-income-report database?
+  → A: An option on the normal run (for example `--import-prices PATH`). The run syncs,
+  imports prices from the file, then looks up whatever is still missing.
+- Q: When this run couldn't refresh a day that already has a provisional price, how should that
+  day show up in the run's report? → A: As a separate count from days with no price, for
+  example "2 days still have no price; 1 provisional price couldn't be refreshed".
+- Q: How long may a first run take when it has to price a full year of days? → A: Under 5
+  minutes.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -161,9 +169,11 @@ as a separate count from any days that failed temporarily.
 ### User Story 4 - Import prices from a previous xmr-income-report database (Priority: P3, optional)
 
 A user who ran the earlier xmr-income-report tool already has daily USD prices for days that
-may now be older than the price source's history. They import those prices so that older
-transactions can be valued. Imported prices only fill in days that have no price; they never
-replace a price already recorded.
+may now be older than the price source's history. They run the tool as usual, adding an
+option that names the previous database. After the sync, the run imports those prices, then
+looks up whatever is still missing, so the price source is never asked for a day the import
+filled. Imported prices only fill in days that have no price; they never replace a price
+already recorded.
 
 **Why this priority**: Optional. It recovers valuations the price source can no longer
 provide, but the core feature works without it.
@@ -179,10 +189,14 @@ imported prices; the two recorded prices are unchanged.
 2. **Given** a day that already has a recorded price, **When** the user imports a database with
    a different price for that day, **Then** the recorded price is not changed.
 3. **Given** a file that isn't a readable xmr-income-report database, **When** the user tries to
-   import it, **Then** the tool reports an error, records nothing, and leaves the file
-   unchanged.
+   import it, **Then** the tool reports an error, records no imported prices, leaves the file
+   unchanged, and ends the run with a failure status before any price lookups.
 4. **Given** an import has run, **When** the user imports the same database again, **Then**
    nothing changes.
+5. **Given** a run with the import option, **When** the import fills a day that had no price,
+   **Then** that day isn't requested from the price source in that run.
+6. **Given** a run with the import option, **When** the sync fails, **Then** nothing is imported
+   and no prices are looked up.
 
 ---
 
@@ -193,7 +207,9 @@ imported prices; the two recorded prices are unchanged.
   the next run and finalized then, because the day has settled; it is never finalized just
   because time has passed.
 - **Refreshing a provisional price fails** (source unavailable, rate-limited): the provisional
-  price is kept, transactions stay valued at it, and the day is retried on a later run.
+  price is kept, transactions stay valued at it, the run reports it in a separate count of
+  provisional prices it couldn't refresh (not among days with no price), and the day is
+  retried on a later run.
 - **Provisional day falls out of the history period before it can be refreshed** (the tool
   wasn't run for longer than the history period): no request is made, the price stays
   provisional, and the run counts the day with the days older than the history period.
@@ -244,13 +260,15 @@ imported prices; the two recorded prices are unchanged.
   MUST be kept, and the next run MUST look up only the days still lacking a final price.
 - **FR-009**: If the price source is unavailable, rejects the request, or rate-limits the run
   (after a brief retry), the run MUST keep every price already recorded, make no further price
-  requests in that run, report how many days still lack a price, and end successfully.
+  requests in that run, report how many days still have no price and, separately, how many
+  provisional prices it couldn't refresh, and end successfully.
 - **FR-010**: The tool MUST pace its requests to stay within the price source's published
   request limits.
 - **FR-011**: A day older than the price source's history period MUST NOT be requested; its
   transactions MUST remain unvalued.
 - **FR-012**: The run MUST report the number of days older than the history period separately
-  from the number of days that lack a price for temporary reasons.
+  from the number of days that have no price for temporary reasons, and separately from the
+  number of provisional prices it couldn't refresh.
 - **FR-013**: When prices were recorded, the run MUST report how many days were priced and how
   many of those prices are provisional.
 - **FR-014**: When every day with recorded transactions has a final price, the run MUST say
@@ -265,11 +283,14 @@ imported prices; the two recorded prices are unchanged.
 - **FR-018**: User-facing messages MUST refer to "transactions", never "transfers" (as in
   feature 001).
 - **FR-019** *(P3, optional)*: Users MUST be able to import daily USD prices from a previous
-  xmr-income-report database. An imported price MUST be recorded only for a day that has no
+  xmr-income-report database by naming it with an option on the normal run (no separate
+  command). The run MUST import after a successful sync and before any price lookups; days
+  the import fills MUST NOT be requested in that run. Without the option, no import happens. An imported price MUST be recorded only for a day that has no
   recorded price, and MUST NOT replace a recorded price (provisional or final). An imported
   price for a settled day is final; for a day that hasn't settled, it is provisional.
 - **FR-020** *(P3, optional)*: An import from a file that isn't a readable xmr-income-report
-  database MUST report an error, record nothing, and leave the file unchanged. Importing the
+  database MUST report an error, record no imported prices, leave the file unchanged, and end
+  the run with a failure status before any price lookups (FR-025). Importing the
   same database twice MUST change nothing the second time.
 - **FR-021**: A day is *settled* once its settling period (1 hour) after the end of the UTC
   day has passed. A price looked up before the day has settled MUST be recorded as provisional; a
@@ -320,13 +341,17 @@ imported prices; the two recorded prices are unchanged.
   left unpriced.
 - **SC-011**: After a rate limit that a brief retry doesn't clear, the run makes 0 further price
   requests.
+- **SC-012**: Under normal conditions, the pricing step of a first run that must price a full
+  year of days (365) finishes in under 5 minutes, not counting the sync, while still meeting
+  SC-007 (0 rate-limit refusals).
 
 ## Assumptions
 
 - The price source is a third-party web service that reports a daily USD price for XMR,
   limits how often it may be called, and only provides history for a limited recent period
   (for example, the last 365 days without a paid plan). The exact service, its limits, and
-  its history period are chosen during planning.
+  its history period are chosen during planning, along with a lookup method (for example,
+  several days per request) that meets SC-012 within those limits.
 - A day's price is the price source's daily price for that UTC calendar date.
 - The settling period is 1 hour after the end of the UTC day: the source documents that a
   completed UTC day's data is published about 35 minutes after midnight UTC. Planning may
