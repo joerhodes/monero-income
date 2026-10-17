@@ -43,7 +43,7 @@ day's `usd_price` when needed (decided).
 | `PriceNeed` | primitives | `date_utc: date`, `has_provisional: bool` (one row per transaction day without a final price) |
 | `ImportRow` | primitives | `line: int`, `date_utc: date`, `usd_price: Decimal` |
 | `PricingSummary` | orchestration | `priced: int`, `provisional: int`, `no_price: int`, `not_refreshed: int`, `too_old: int`, `all_final: bool`, `stopped: StopReason \| None` |
-| `ImportSummary` | orchestration | `imported: int`, `skipped: int` |
+| `ImportSummary` | orchestration (`price_import.py`, re-exported from `run.py`) | `imported: int`, `skipped: int` |
 | `RunResult` | orchestration | `recorded: int`, `imported: ImportSummary \| None`, `pricing: PricingSummary` (replaces feature 001's `SyncResult`) |
 | `StopReason` | orchestration | `rate_limited`, `key_rejected`, `unavailable` (with the reason text, never the key) |
 
@@ -55,7 +55,8 @@ day's `usd_price` when needed (decided).
 - `api_key: str | None`, hidden from `repr`;
 - `api_key_type: Literal["demo", "pro"] | None`, required when `api_key` is set, otherwise
   `None`;
-- `min_request_delay: Decimal | None`, in seconds, ≥ 0; `None` means the R1 default.
+- `min_request_delay: Decimal | None`, in seconds, ≥ 0; `None` means the R1 default;
+- `import_prices: Path | None`, from `--import-prices`; `None` means no import.
 
 `CliOptions` gains `import_prices: str | None`, `coingecko_api_key: str | None` and
 `coingecko_api_key_type: str | None`. Command-line options override the config file.
@@ -68,11 +69,11 @@ day's `usd_price` when needed (decided).
 | `plan_lookups(needs, today)` | Split into `requestable` (oldest first, FR-024) and `too_old` (FR-011; includes provisional days that aged out) |
 | `settled_at(day)` | `datetime(day + 1 day, 00:00 UTC) + 1 hour` |
 | `price_status(day, now)` | `"final"` if `now >= settled_at(day)` else `"provisional"` (FR-021, FR-022: decided at lookup time only) |
-| `default_delay(has_key)` | 0.7 s with a key, 6.0 s without (research R1) |
+| `default_delay(has_key)` | 2.5 s with a key, 6.0 s without (research R1) |
 | `usd_value(amount_piconero, usd_price)` | Exact product, scaled by 10⁻¹² (research R4) |
 | `parse_import(text)` | Validates the whole file → `list[ImportRow]`, or an error naming the first bad line (FR-020) |
 | `select_imports(rows, priced_days, cutoff)` | Keep rows with `date < cutoff` and no recorded price; count the rest as skipped (FR-019) |
-| `summarize(...)` | Builds `PricingSummary`; `all_final` when no day with transactions lacks a final price (FR-014) |
+| `summarize(...)` | Builds `PricingSummary`; `all_final` when at least one transaction is recorded and no day with transactions lacks a final price (FR-014) |
 
 `parse_history_price(body)` (primitives, pure) reads `market_data.current_price.usd` from the
 Decimal-decoded body. It returns `None` when the data is missing and raises on a malformed,

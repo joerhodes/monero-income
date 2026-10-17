@@ -17,36 +17,38 @@ The planning input fixed most decisions; this file researches the one item marke
 | Keyless (no API key) | "~10–30 calls/min (dynamic, varies by server load)", IP-based | 6.0 s (assumes the 10/min floor) |
 | Demo (free API key) | "100 calls/min" (older third-party docs say 30/min) | 0.6 s at 100/min |
 
-The legacy default of 1.2 s (50 calls/min) is within the Demo limit but above the keyless
-range, so a keyless run at 1.2 s would expect 429s, failing SC-007.
+The legacy default of 1.2 s (50 calls/min) is within the current Demo limit but above the
+keyless range and the older 30/min Demo figure.
 
-**Decision**: the default interval depends on whether a key is configured. `min_request_delay`
-(seconds) overrides both defaults.
+**Decision (revised 2026-10-17)**: the default interval depends on whether a key is configured.
+`min_request_delay` (seconds) overrides both defaults.
 
-- With `coingecko_api_key` (Demo or Pro): **0.7 s** (about 86 calls/min, under the Demo plan's
-  100; paid plans allow more).
-- Without a key: **6.0 s** (10 calls/min, the keyless floor).
+- With `coingecko_api_key` (Demo or Pro): **2.5 s**, about 24 calls/min.
+- Without a key: **6.0 s**, 10 calls/min, the keyless floor.
 
-**Check against the spec**
+**Reasoning**
 
-- SC-007 (0 rate-limit refusals): met by both defaults within the documented limits. If the
-  Demo plan is really 30/min (as older sources say), 0.7 s would draw a 429. The run then
-  stops pricing cleanly (FR-009), and the user can raise `min_request_delay`.
-- SC-012 (365 days priced in under 5 minutes): needs an interval of at most 0.82 s.
-  - With a key: 365 × 0.7 s ≈ 4 min 16 s. **Met.**
-  - Without a key: 365 × 6.0 s ≈ 36.5 min. **Not met.** A keyless run that stayed within the
-    documented limits can't meet SC-012 with one request per day. Even at the keyless ceiling
-    (30/min, 2 s) it would take about 12 minutes.
-  - The legacy 1.2 s: 365 × 1.2 s ≈ 7.3 min. **Not met** even with a key.
+- **Why 2.5 s with a key:** the current docs give the Demo plan 100 calls/min, but older
+  sources say 30/min, and CoinGecko's limits have changed before. 2.5 s stays under even the
+  lower figure with margin, so the default is safe whichever number is current. A Pro key
+  allows more, but the same conservative default is used; Pro users can lower it with
+  `min_request_delay`.
+- **Why 6.0 s without a key:** the keyless limit is "~10–30 calls/min (dynamic)". Only the
+  10/min floor is safe at all times.
+- **Run duration isn't a requirement:** SC-012 was removed (spec Clarifications). A first run
+  pricing a full year of days takes about 15 minutes with a key (365 × 2.5 s) or about 36
+  minutes without one (365 × 6.0 s). That's acceptable for a personal tool that does this
+  once.
+- **SC-007 (revised)**: both defaults stay within the published limits. If a refusal still
+  happens (the keyless limit varies with server load), FR-009 and SC-004 keep every recorded
+  price, and a later run continues. Recovery is the requirement; no-refusal pacing is a
+  best effort.
 
-**Resolved (2026-10-17)**: SC-012 was amended to apply when an API key is configured
-(option a). Keyless runs stay within the keyless limits (SC-007) and simply take longer. The
-alternatives were a multi-day endpoint (`/market_chart/range`), which contradicts the decided
-`/history` endpoint and returns different price points, and dropping SC-012.
-
-**Alternatives considered**: one fixed default (1.2 s) breaks SC-007 without a key and SC-012
-with one. An adaptive rate driven by 429s would spend requests on refusals; SC-007 asks for
-none.
+**Alternatives considered**
+- The legacy 1.2 s (50/min) is above the keyless range and above the older 30/min Demo figure.
+- 0.7 s (the earlier draft) relied on the 100/min Demo figure and was only needed for the
+  removed SC-012.
+- An adaptive rate driven by 429s would spend requests on refusals.
 
 ## R2. What `/coins/{id}/history` returns (finding)
 

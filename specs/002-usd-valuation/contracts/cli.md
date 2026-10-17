@@ -28,7 +28,7 @@ its count is non-zero, except the last.
 | `N days still have no price; a later run will try again.` | `no_price` > 0 |
 | `N provisional prices couldn't be refreshed; a later run will try again.` | `not_refreshed` > 0 |
 | `N days are older than the price history and can't be looked up; use --import-prices to add them.` | `too_old` > 0 |
-| `All transactions are valued.` | every day with transactions has a final price (FR-014) |
+| `All transactions are valued.` | at least one transaction is recorded and every day with transactions has a final price (FR-014); never printed for an empty database |
 
 Use "day"/"price" and "row" singular when the count is 1.
 

@@ -14,7 +14,7 @@ A run and validation guide. Behavior details are in [contracts/](contracts/) and
 | US2-1: source fails after 4 of 10 days | 4 kept; `6 days still have no price…`; exit 0 |
 | US2-2: 429, then 429 on retry | `sleep(10)` recorded once; no further requests; warning; exit 0 |
 | US2-3: Ctrl-C on the 3rd lookup | 2 prices kept; the next run requests only the rest |
-| US2-4: pacing | Recorded `sleep` intervals ≥ 0.7 s (key) or 6.0 s (no key), or `min_request_delay` |
+| US2-4: pacing | Recorded `sleep` intervals ≥ 2.5 s (key) or 6.0 s (no key), or `min_request_delay` |
 | US2-6: stop early | Every priced day is older than every unpriced day |
 | US2-7: storage error while pricing | `RunError`, exit 1, earlier prices kept |
 | US3: days older than 364 days | Never requested; counted in `too_old` |
@@ -38,11 +38,11 @@ uv run monero-income --db-path /tmp/mi.db       # immediately again
 
 | Check | Expected |
 |-------|----------|
-| First run | `Priced N days (1 provisional).` (today), nothing about rate limits, and at most about 4 min 20 s for 365 days with a key |
+| First run | `Priced N days (1 provisional).` (today) and nothing about rate limits; about 2.5 s between requests with a key |
 | Second run | Only today is looked up (refreshed, still provisional) |
 | After 01:00 UTC the next day | Yesterday is refreshed and becomes `final` |
 | Bad key | `Warning: … rejected the API key`, exit 0, key not shown |
-| No key, many days | About 6 s between requests; slower than SC-012, which applies only with a key |
+| No key, many days | About 6 s between requests |
 | Key without a type | `Error: invalid coingecko_api_key_type: required when coingecko_api_key is set`, exit 1 |
 | SC-008 with `--coingecko-api-key` | The key appears in no output |
 

@@ -68,6 +68,12 @@ price yet and never replace a recorded price."
 - Q: The keyless price-source tier is too slow to price a full year in under 5 minutes without
   rate-limit refusals; how should SC-012 change? → A: SC-012 applies when an API key is
   configured.
+- Q: Should a first run's duration be a requirement, and what should SC-007 require? → A: No.
+  SC-012 is removed; a first run's duration isn't a requirement for this personal tool
+  (supersedes the earlier SC-012 entries). SC-007 is replaced: the default request pacing
+  stays within the price source's published limits for unauthenticated and demo-key use, and
+  when a rate-limit refusal does occur, no recorded price is lost and a later run prices the
+  remaining days.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -356,8 +362,9 @@ unchanged; and the two recent days are priced by the source.
 - **SC-005**: After any interruption or temporary failure, the next run that completes without
   failure leaves the same prices as a single uninterrupted run.
 - **SC-006**: 0 requests are made for days older than the source's history period.
-- **SC-007**: Under normal conditions, a run pricing up to a full history period of days
-  receives 0 rate-limit refusals from the price source.
+- **SC-007**: The default request pacing stays within the price source's published limits for
+  unauthenticated and demo-key use. When a rate-limit refusal does occur, no recorded price is
+  lost and a later run prices the remaining days (as FR-009 and SC-004 require).
 - **SC-008**: The API key appears in 0 lines of output.
 - **SC-009**: 0 provisional prices become final without a lookup made after their day settled,
   however long the tool goes without running.
@@ -365,17 +372,13 @@ unchanged; and the two recent days are priced by the source.
   left unpriced.
 - **SC-011**: After a rate limit that a brief retry doesn't clear, the run makes 0 further price
   requests.
-- **SC-012**: With an API key configured, under normal conditions, the pricing step of a first
-  run that must price a full year of days (365) finishes in under 5 minutes, not counting the
-  sync, while still meeting SC-007 (0 rate-limit refusals).
 
 ## Assumptions
 
 - The price source is a third-party web service that reports a daily USD price for XMR,
   limits how often it may be called, and only provides history for a limited recent period
   (for example, the last 365 days without a paid plan). The exact service, its limits, and
-  its history period are chosen during planning, along with a lookup method (for example,
-  several days per request) that meets SC-012 within those limits.
+  its history period are chosen during planning.
 - A day's price is the price source's daily price for that UTC calendar date.
 - The settling period is 1 hour after the end of the UTC day: the source documents that a
   completed UTC day's data is published about 35 minutes after midnight UTC. Planning may

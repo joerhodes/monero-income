@@ -95,7 +95,7 @@ test doubles. Every story depends on these.
   - `upsert_price` inserts, replaces a provisional row, leaves a final row unchanged (the conditional upsert does nothing), and commits;
   - `priced_days` returns the requested dates that have any price;
   - `insert_imported` inserts all rows in one transaction and rolls back all of them if any conflicts (`StorageWriteError`);
-  - `all_days_final` is True only when every transaction day has a final price;
+  - `all_days_final` is True only when at least one transaction is recorded and every transaction day has a final price (False for an empty database);
   - prices round-trip exactly, e.g. `Decimal("152.3456")` and `Decimal("0.000000012345678901234567890123")`, with no exponent in the stored text.
 - [ ] T008 Implement `src/monero_income/primitives/prices_db.py`. I/O only; errors are `StorageWriteError` from `errors.py`.
   - `price_needs(conn) -> list[PriceNeed]`.
@@ -139,7 +139,7 @@ test doubles. Every story depends on these.
   - `plan_lookups(needs, today)` splits into `requestable`, ascending (FR-024), and `too_old`, which includes provisional days older than the cutoff;
   - `settled_at(date(2026, 10, 16)) == datetime(2026, 10, 17, 1, 0, tzinfo=UTC)`;
   - `price_status(day, now)` is `"provisional"` at `settled_at - 1 s` and `"final"` at `settled_at`;
-  - `default_delay(True) == Decimal("0.7")` and `default_delay(False) == Decimal("6.0")`;
+  - `default_delay(True) == Decimal("2.5")` and `default_delay(False) == Decimal("6.0")`;
   - `usd_value(1_234_567_890_123, Decimal("152.3456")) == Decimal("188.0809859615225088")` exactly;
   - `usd_value` stays exact with a 20-digit amount and a 30-significant-digit price, where the default 28-digit context would round (research R4).
 
@@ -204,7 +204,7 @@ for final days.
   - **Summary:** `RunResult.pricing.priced` and `.provisional` counts are correct.
 - [ ] T017 [P] [US1] Add to `tests/cli/test_cli_success.py`, monkeypatching `run` to return a `RunResult`:
   - the sync line is followed by `Priced 3 days (1 provisional).`, with `Priced 1 day.` for singular and no provisional part;
-  - `All transactions are valued.`;
+  - `All transactions are valued.` when `all_final` is True, and not printed for an empty database (`RunResult(recorded=0, …)` with `pricing.all_final` False, as `all_days_final` returns for no transactions);
   - `--coingecko-api-key` and `--coingecko-api-key-type pro` map onto `CliOptions`;
   - a distinctive key passed with `--coingecko-api-key` appears nowhere in stdout or stderr (SC-008).
 
@@ -228,14 +228,14 @@ for final days.
 
   Pacing, retry, and stop handling are added in US2 (T026); for now, `PriceSourceError` propagates.
 - [ ] T020 [US1] Update `src/monero_income/orchestration/run.py` to the contracts/run-api.md signature:
-  - **Result:** rename `SyncResult` to `RunResult(recorded: int, imported: ImportSummary | None, pricing: PricingSummary)`; define `ImportSummary(imported: int, skipped: int)` here or in `price_import.py`.
+  - **Result:** rename `SyncResult` to `RunResult(recorded: int, imported: ImportSummary | None, pricing: PricingSummary)`; define `ImportSummary(imported: int, skipped: int)` in `src/monero_income/orchestration/price_import.py` (create the module with just this dataclass if US4 isn't done yet) and re-export it from `run.py`.
   - **Defaults:** `price_source_factory`, `clock`, and `sleep` default to `None` and are resolved **at call time** to `make_price_source`, `utc_now`, and the module-level `_sleep = time.sleep`, so the T023 fixture can replace them. `make_price_source(settings)` builds `CoinGeckoPriceSource(settings.coingecko_url, settings.coin_id, settings.api_key, settings.api_key_type)`.
   - **Order:** after a successful sync, call `price_days` with `today = clock().date()` and `delay = settings.min_request_delay or default_delay(settings.api_key is not None)`. Close the price source if it has `close()`.
   - **Errors:** `StorageError` during pricing → `RunError` via `_run_error` (FR-025).
 - [ ] T021 [US1] Export `RunResult`, `PricingSummary`, `ImportSummary`, and `StopReason` from `src/monero_income/orchestration/__init__.py`, and remove `SyncResult`. Update `tests/integration/helpers.py` (`run_once` returns `RunResult`) and `tests/cli/test_cli_errors.py`.
 - [ ] T022 [US1] Update `src/monero_income/cli.py`:
   - add `--coingecko-api-key` and `--coingecko-api-key-type` (Typer `Option`, mapped onto `CliOptions`);
-  - after the sync line, print `Priced N day(s) (M provisional).` when `priced > 0` (omit the parenthesis when M = 0), and `All transactions are valued.` when `all_final`, using contracts/cli.md wording and singular forms.
+  - after the sync line, print `Priced N day(s) (M provisional).` when `priced > 0` (omit the parenthesis when M = 0), and `All transactions are valued.` when `all_final` (which is False when no transaction is recorded), using contracts/cli.md wording and singular forms.
 
   This makes T016 and T017 pass.
 - [ ] T023 [US1] Add an autouse fixture to `tests/conftest.py`, with a docstring explaining why. It monkeypatches `monero_income.orchestration.run.make_price_source` to return an empty `FakePriceSource()`, and `monero_income.orchestration.run._sleep` to a no-op, so no test can reach CoinGecko or sleep in real time, including feature 001's tests, whose runs now price after syncing. Then run the full suite: feature 001's tests must pass unchanged apart from T006 and T021.
@@ -259,12 +259,13 @@ reports 6 with no price, and exits 0. The next run requests only the other 6.
   - **US2-1:** `PriceUnavailableError` on the 5th of 10 days → 4 prices kept, `no_price == 6`, `stopped.kind == "unavailable"`, no exception; the next run requests exactly the remaining 6.
   - **US2-2:** a 429 → `RecordingSleep` gets `10.0`, the same day is retried, and a second 429 stops the run with `rate_limited`, making 0 further requests (SC-011). A 429 with `retry_after=30` sleeps 30; `retry_after=120` is capped at 60.
   - **US2-3:** `KeyboardInterrupt` on the 3rd day propagates, 2 prices are kept, and the next run requests only the rest.
-  - **US2-4:** with a key, consecutive requests are separated by `sleep` calls totalling ≥ 0.7 s; without a key, ≥ 6.0 s; with `min_request_delay = 2`, ≥ 2 s; and there's no sleep before the first request.
+  - **US2-4:** with a key, consecutive requests are separated by `sleep` calls totalling ≥ 2.5 s; without a key, ≥ 6.0 s; with `min_request_delay = 2`, ≥ 2 s; and there's no sleep before the first request.
   - **US2-5:** a source unreachable from the start → `stopped.kind == "unavailable"` and the sync count is still returned.
   - **US2-6 / SC-010:** in every early stop, the max priced date is earlier than the min unpriced date.
   - **US2-7 / FR-025:** a storage write failure during `upsert_price` (patch `upsert_price` to raise `StorageWriteError`) → `RunError` containing `cannot write to database`, with earlier prices kept.
   - **FR-023:** a provisional day whose refresh fails keeps its price and is counted in `not_refreshed`.
   - **Key rejected:** `PriceKeyRejectedError` → `stopped.kind == "key_rejected"`.
+  - **SC-005 equivalence:** for the US2-1 (unavailable) and US2-3 (`KeyboardInterrupt`) cases, after the follow-up run, `SELECT date_utc, usd_price, status FROM daily_prices ORDER BY date_utc` equals the same query on a fresh `tmp_path` database priced by one uninterrupted run on the same fake data. Both runs use the same fixed `FakeClock` time, so statuses are comparable.
 - [ ] T025 [P] [US2] Add to `tests/cli/test_cli_success.py`:
   - `N days still have no price; a later run will try again.`;
   - `N provisional prices couldn't be refreshed; a later run will try again.`;
@@ -422,6 +423,11 @@ US1 (valuation) → US2 (resilience and pacing, needed before pricing a full yea
 
 ## Notes
 
-- **Contract refinement**: contracts/run-api.md shows `price_source_factory`, `clock`, and `sleep` with value defaults. T020 makes them `None`, resolved at call time, so the autouse test fixture can replace the real CoinGecko client and real sleep everywhere (the same reasoning as feature 001's call-time `HOME` expansion). Behavior is unchanged.
+- **Call-time defaults**: contracts/run-api.md specifies `None` defaults for `price_source_factory`, `clock`, and `sleep`, resolved at call time (T020), so the autouse test fixture (T023) can replace the real CoinGecko client and real sleep everywhere.
 - **Renaming `SyncResult` to `RunResult`** touches feature 001's CLI and tests (T017, T021). No user-visible output changes for feature 001.
 - **Commits**: commit after each task or logical group; never commit `.db` files or `config.toml`.
+- **Analysis notes** (`/speckit-analyze`, 2026-10-17):
+  - **G1** is no longer applicable: SC-012 was removed from the spec.
+  - **G2** is resolved by the SC-005 equivalence case in T024.
+  - **G3** is accepted with no new test: concurrent runs use the same storage layer and SQLite locking as feature 001, whose lock test (`tests/integration/test_concurrent_run.py`) already covers it, and the storage-error path during pricing is covered by US2-7 in T024.
+  - **I1, I2, U1, U2** are resolved in contracts/run-api.md, data-model.md, T020, and contracts/cli.md with T007, T017, and T022.

@@ -22,7 +22,8 @@ The feature follows feature 001's stack, layers, config, error handling and test
 only the differences are listed here.
 
 **Resolved since the first draft** (2026-10-17):
-- SC-012 now applies when an API key is configured (research R1).
+- SC-012 was removed and SC-007 revised; the default interval with a key is a conservative
+  2.5 s (research R1).
 - The key type (`demo`/`pro`) is configured with the key and selects the header and the default
   base URL. Both can be overridden on the command line (research R3).
 - `error_code` 10012 was confirmed by a manual request.
@@ -44,10 +45,9 @@ only the differences are listed here.
 client; injected `clock` and `sleep`, so there are no real waits; a migration test from a
 version-1 database
 
-**Performance Goals**:
-- SC-012 with a key: 365 × 0.7 s ≈ 4 min 16 s.
-- SC-007: default intervals of 0.7 s with a key and 6.0 s without stay within the documented
-  limits.
+**Performance Goals**: none for run duration (SC-012 was removed). SC-007: default intervals
+of 2.5 s with a key and 6.0 s without stay within the published limits, and
+`min_request_delay` overrides them (research R1).
 
 **Constraints**:
 - No float for prices or values; JSON is decoded with `parse_float=Decimal`.
