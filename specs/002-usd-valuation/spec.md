@@ -65,6 +65,9 @@ price yet and never replace a recorded price."
   already have a price or are inside the history period are skipped and counted in the run's
   report. The import is requested with an option on the main command, and the run then
   continues as normal.
+- Q: The keyless price-source tier is too slow to price a full year in under 5 minutes without
+  rate-limit refusals; how should SC-012 change? → A: SC-012 applies when an API key is
+  configured.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -362,9 +365,9 @@ unchanged; and the two recent days are priced by the source.
   left unpriced.
 - **SC-011**: After a rate limit that a brief retry doesn't clear, the run makes 0 further price
   requests.
-- **SC-012**: Under normal conditions, the pricing step of a first run that must price a full
-  year of days (365) finishes in under 5 minutes, not counting the sync, while still meeting
-  SC-007 (0 rate-limit refusals).
+- **SC-012**: With an API key configured, under normal conditions, the pricing step of a first
+  run that must price a full year of days (365) finishes in under 5 minutes, not counting the
+  sync, while still meeting SC-007 (0 rate-limit refusals).
 
 ## Assumptions
 
