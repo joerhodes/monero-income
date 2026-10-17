@@ -55,6 +55,16 @@ price yet and never replace a recorded price."
   example "2 days still have no price; 1 provisional price couldn't be refreshed".
 - Q: How long may a first run take when it has to price a full year of days? → A: Under 5
   minutes.
+- Q: What does the optional import read, and which days may it fill? → A: A CSV file with a
+  header row and two columns, `date_utc` (YYYY-MM-DD) and `usd_price` (USD per 1 XMR), not a
+  previous database (supersedes the earlier "previous xmr-income-report database" wording).
+  Imported prices are recorded, as final, only for days older than the price source's
+  history period that have no recorded price; days inside the period are always priced by the
+  source. A file with any invalid row (bad date, missing or non-positive price, duplicate
+  date) is rejected as a whole, and the error names the first bad row. Rows for days that
+  already have a price or are inside the history period are skipped and counted in the run's
+  report. The import is requested with an option on the main command, and the run then
+  continues as normal.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -166,35 +176,41 @@ as a separate count from any days that failed temporarily.
 
 ---
 
-### User Story 4 - Import prices from a previous xmr-income-report database (Priority: P3, optional)
+### User Story 4 - Import prices from a CSV file (Priority: P3, optional)
 
-A user who ran the earlier xmr-income-report tool already has daily USD prices for days that
-may now be older than the price source's history. They run the tool as usual, adding an
-option that names the previous database. After the sync, the run imports those prices, then
-looks up whatever is still missing, so the price source is never asked for a day the import
-filled. Imported prices only fill in days that have no price; they never replace a price
-already recorded.
+A user has daily USD prices from elsewhere (for example, exported from the earlier
+xmr-income-report tool) for days older than the price source's history, which the source can
+no longer price. They run the tool as usual, adding an option that names a CSV file of daily
+prices. After the sync, the run imports prices for those old days, then continues as normal,
+looking up prices from the source. Imported prices only fill in old days that have no price;
+days inside the history period are always priced by the source, and a recorded price is never
+replaced.
 
 **Why this priority**: Optional. It recovers valuations the price source can no longer
 provide, but the core feature works without it.
 
-**Independent Test**: With a previous xmr-income-report database holding prices for five
-days, two of which already have a recorded price, import it. The three unpriced days get the
-imported prices; the two recorded prices are unchanged.
+**Independent Test**: With a CSV file of five rows (two old days with no price, one old day
+that already has a price, and two days inside the history period), run the tool with the
+import option. The two old unpriced days get the imported prices, recorded as final; the
+other three rows are skipped and counted in the run's report; the existing price is
+unchanged; and the two recent days are priced by the source.
 
 **Acceptance Scenarios**:
 
-1. **Given** a previous database with prices for days that have no recorded price, **When** the
-   user imports it, **Then** those days get the imported prices.
-2. **Given** a day that already has a recorded price, **When** the user imports a database with
-   a different price for that day, **Then** the recorded price is not changed.
-3. **Given** a file that isn't a readable xmr-income-report database, **When** the user tries to
-   import it, **Then** the tool reports an error, records no imported prices, leaves the file
-   unchanged, and ends the run with a failure status before any price lookups.
-4. **Given** an import has run, **When** the user imports the same database again, **Then**
-   nothing changes.
-5. **Given** a run with the import option, **When** the import fills a day that had no price,
-   **Then** that day isn't requested from the price source in that run.
+1. **Given** a CSV file with rows for days older than the history period that have no price,
+   **When** the user runs the tool with the import option, **Then** those days get the
+   imported prices, recorded as final.
+2. **Given** a row for a day that already has a recorded price, **When** the user imports the
+   file, **Then** the row is skipped, the recorded price is not changed, and the row is counted
+   as skipped in the run's report.
+3. **Given** a row for a day inside the history period, **When** the user imports the file,
+   **Then** the row is skipped and counted as skipped, and that day is priced by the source.
+4. **Given** a file with any invalid row (a bad date, a missing or non-positive price, or a
+   date that appears twice), **When** the user tries to import it, **Then** the whole file is
+   rejected, no imported prices are recorded, the error names the first bad row, the file is
+   left unchanged, and the run ends with a failure status before any price lookups.
+5. **Given** an import has run, **When** the user imports the same file again, **Then** nothing
+   new is recorded; every row is skipped and counted.
 6. **Given** a run with the import option, **When** the sync fails, **Then** nothing is imported
    and no prices are looked up.
 
@@ -282,16 +298,21 @@ imported prices; the two recorded prices are unchanged.
   transactions.
 - **FR-018**: User-facing messages MUST refer to "transactions", never "transfers" (as in
   feature 001).
-- **FR-019** *(P3, optional)*: Users MUST be able to import daily USD prices from a previous
-  xmr-income-report database by naming it with an option on the normal run (no separate
-  command). The run MUST import after a successful sync and before any price lookups; days
-  the import fills MUST NOT be requested in that run. Without the option, no import happens. An imported price MUST be recorded only for a day that has no
-  recorded price, and MUST NOT replace a recorded price (provisional or final). An imported
-  price for a settled day is final; for a day that hasn't settled, it is provisional.
-- **FR-020** *(P3, optional)*: An import from a file that isn't a readable xmr-income-report
-  database MUST report an error, record no imported prices, leave the file unchanged, and end
-  the run with a failure status before any price lookups (FR-025). Importing the
-  same database twice MUST change nothing the second time.
+- **FR-019** *(P3, optional)*: Users MUST be able to import daily USD prices from a CSV file by
+  naming it with an option on the main command (no separate command). The file MUST have a
+  header row and two columns: `date_utc` (a UTC date, YYYY-MM-DD) and `usd_price` (USD per 1
+  XMR). The run MUST import after a successful sync and before any price lookups, then
+  continue as normal. An imported price MUST be recorded only for a day that is older than the
+  price source's history period and has no recorded price, and MUST be recorded as final.
+  Rows for days that already have a price (provisional or final) or are inside the history
+  period MUST be skipped, never replacing a recorded price; the run MUST report how many
+  prices were imported and how many rows were skipped. Without the option, no import happens.
+- **FR-020** *(P3, optional)*: A file with any invalid row (a date that isn't a valid
+  YYYY-MM-DD, a missing or non-positive price, or a date that appears more than once), a
+  missing or wrong header, or a file that can't be read MUST be rejected as a whole: no
+  imported price is recorded, the file is left unchanged, the error names the first bad row
+  (or the header or file problem), and the run ends with a failure status before any price
+  lookups (FR-025). Importing the same file twice MUST record nothing the second time.
 - **FR-021**: A day is *settled* once its settling period (1 hour) after the end of the UTC
   day has passed. A price looked up before the day has settled MUST be recorded as provisional; a
   price looked up after the day has settled MUST be recorded as final.
@@ -363,8 +384,6 @@ imported prices; the two recorded prices are unchanged.
 - Valuing a transaction doesn't change its recorded data (feature 001 FR-009 still holds).
 - A price-source problem (failed or partial lookups) doesn't change the run's exit status: the
   run succeeds if the sync succeeded. Other errors during pricing fail the run (FR-025).
-- The previous xmr-income-report database format is the one the original tool writes; its
-  daily prices are USD per 1 XMR for UTC calendar days.
 - Feature 001's messages and behavior are unchanged; this feature adds lines after the sync's
   line.
 - This feature produces no report output (CSV or summaries), so it creates or changes no
