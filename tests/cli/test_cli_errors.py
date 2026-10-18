@@ -4,13 +4,13 @@ import pytest
 from typer.testing import CliRunner
 
 from monero_income import cli
-from monero_income.orchestration import CliOptions, Reporter, RunError, SyncResult
+from monero_income.orchestration import CliOptions, Reporter, RunError, RunResult
 
 runner = CliRunner()
 
 
 def raising(error: BaseException) -> object:
-    def fake_run(options: CliOptions, reporter: Reporter) -> SyncResult:
+    def fake_run(options: CliOptions, reporter: Reporter) -> RunResult:
         raise error
 
     return fake_run
@@ -45,9 +45,9 @@ def test_unknown_option_is_a_usage_error() -> None:
 
 
 def test_warning_is_printed_and_the_run_continues(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_run(options: CliOptions, reporter: Reporter) -> SyncResult:
+    def fake_run(options: CliOptions, reporter: Reporter) -> RunResult:
         reporter.warning("config file is readable by other users")
-        return SyncResult(recorded=2)
+        return RunResult(recorded=2)
 
     monkeypatch.setattr(cli, "run", fake_run)
 

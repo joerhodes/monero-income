@@ -8,7 +8,7 @@ from typing import Annotated, NoReturn
 
 import typer
 
-from monero_income.orchestration import CliOptions, RunError, run
+from monero_income.orchestration import CliOptions, RunError, RunResult, run
 
 app = typer.Typer(
     add_completion=False,
@@ -35,8 +35,26 @@ def main_command(
         ),
     ] = None,
     db_path: Annotated[str | None, typer.Option("--db-path", help="SQLite database file.")] = None,
+    coingecko_api_key: Annotated[
+        str | None,
+        typer.Option(
+            "--coingecko-api-key",
+            help="Price source API key. Prefer the config file: a key given here can end up "
+            "in shell history.",
+        ),
+    ] = None,
+    coingecko_api_key_type: Annotated[
+        str | None,
+        typer.Option("--coingecko-api-key-type", help="Price source key type: demo or pro."),
+    ] = None,
 ) -> None:
-    options = CliOptions(rpc_url=rpc_url, username=username, db_path=db_path)
+    options = CliOptions(
+        rpc_url=rpc_url,
+        username=username,
+        db_path=db_path,
+        coingecko_api_key=coingecko_api_key,
+        coingecko_api_key_type=coingecko_api_key_type,
+    )
     try:
         result = run(options, StderrReporter())
     except RunError as error:
@@ -45,11 +63,29 @@ def main_command(
         _fail("interrupted; anything already recorded was kept", 130)
     except Exception as error:
         _fail(f"unexpected {type(error).__name__}: {error}", 1)
+    for line in _summary_lines(result):
+        typer.echo(line)
+
+
+def _summary_lines(result: RunResult) -> list[str]:
+    """The run's stdout lines (contracts/cli.md for features 001 and 002)."""
     if result.recorded == 0:
-        typer.echo("No new transactions found.")
+        lines = ["No new transactions found."]
     else:
-        noun = "transaction" if result.recorded == 1 else "transactions"
-        typer.echo(f"Recorded {result.recorded} new {noun}.")
+        lines = [f"Recorded {result.recorded} new {_plural(result.recorded, 'transaction')}."]
+    pricing = result.pricing
+    if pricing.priced:
+        priced = f"Priced {pricing.priced} {_plural(pricing.priced, 'day')}"
+        if pricing.provisional:
+            priced += f" ({pricing.provisional} provisional)"
+        lines.append(priced + ".")
+    if pricing.all_final:
+        lines.append("All transactions are valued.")
+    return lines
+
+
+def _plural(count: int, noun: str) -> str:
+    return noun if count == 1 else f"{noun}s"
 
 
 def _fail(message: str, exit_code: int) -> NoReturn:

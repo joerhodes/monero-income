@@ -1,12 +1,16 @@
 """run(): the entry point for one full run of the tool. Testable without Typer."""
 
 import sqlite3
+import time
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
 from monero_income.orchestration.errors import RunError
+from monero_income.orchestration.price_import import ImportSummary
+from monero_income.orchestration.pricing import PricingSummary, price_days
 from monero_income.orchestration.settings import (
     CliOptions,
     Settings,
@@ -14,6 +18,7 @@ from monero_income.orchestration.settings import (
     resolve_settings,
 )
 from monero_income.orchestration.sync import sync
+from monero_income.orchestration.valuation import default_delay
 from monero_income.primitives.config_file import read_config
 from monero_income.primitives.database import open_database
 from monero_income.primitives.errors import (
@@ -28,7 +33,11 @@ from monero_income.primitives.errors import (
     WalletRpcError,
     WalletUnreachableError,
 )
+from monero_income.primitives.price_source import CoinGeckoPriceSource, PriceSource
 from monero_income.primitives.wallet_rpc import HttpWalletRpc, WalletRpc
+
+# Resolved at call time, so tests can replace them (contracts/run-api.md).
+_sleep = time.sleep
 
 
 class Reporter(Protocol):
@@ -36,12 +45,24 @@ class Reporter(Protocol):
 
 
 @dataclass(frozen=True)
-class SyncResult:
+class RunResult:
     recorded: int
+    imported: ImportSummary | None = None  # None when --import-prices wasn't given
+    pricing: PricingSummary = field(default_factory=PricingSummary)
 
 
 def make_wallet(settings: Settings) -> WalletRpc:
     return HttpWalletRpc(settings.rpc_url, settings.username, settings.password)
+
+
+def make_price_source(settings: Settings) -> PriceSource:
+    return CoinGeckoPriceSource(
+        settings.coingecko_url, settings.coin_id, settings.api_key, settings.api_key_type
+    )
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
 
 
 def run(
@@ -50,14 +71,21 @@ def run(
     *,
     config_path: Path | None = None,
     wallet_factory: Callable[[Settings], WalletRpc] = make_wallet,
+    price_source_factory: Callable[[Settings], PriceSource] | None = None,
     connect: Callable[[Path], sqlite3.Connection] = open_database,
-) -> SyncResult:
-    """Run once: resolve settings, open the database, sync.
+    clock: Callable[[], datetime] | None = None,
+    sleep: Callable[[float], None] | None = None,
+) -> RunResult:
+    """Run once: resolve settings, open the database, sync, then price.
 
     ``config_path`` defaults to ``~/.config/monero-income/config.toml``, expanded
-    at call time. Every expected failure is raised as ``RunError``;
-    ``KeyboardInterrupt`` propagates.
+    at call time; so are the price source, clock, and sleep defaults. Every
+    expected failure is raised as ``RunError``; price-source problems don't fail
+    the run; ``KeyboardInterrupt`` propagates.
     """
+    make_source = price_source_factory or make_price_source
+    now = clock or utc_now
+    wait = sleep or _sleep
     path = config_path if config_path is not None else default_config_path()
     try:
         raw = read_config(path)
@@ -74,14 +102,30 @@ def run(
             try:
                 recorded = sync(conn, wallet)
             finally:
-                close = getattr(wallet, "close", None)
-                if callable(close):
-                    close()
+                _close(wallet)
+            source = make_source(settings)
+            try:
+                pricing = price_days(
+                    conn,
+                    source,
+                    today=now().date(),
+                    clock=now,
+                    sleep=wait,
+                    delay=settings.min_request_delay or default_delay(settings.api_key is not None),
+                )
+            finally:
+                _close(source)
         finally:
             conn.close()
     except (StorageError, WalletError) as error:
         raise _run_error(error, settings) from error
-    return SyncResult(recorded=recorded)
+    return RunResult(recorded=recorded, pricing=pricing)
+
+
+def _close(resource: object) -> None:
+    close = getattr(resource, "close", None)
+    if callable(close):
+        close()
 
 
 def _run_error(error: StorageError | WalletError, settings: Settings) -> RunError:

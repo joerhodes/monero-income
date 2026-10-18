@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from monero_income.primitives.price_parse import NoPrice, PriceAnswer
+from monero_income.primitives.price_source import PriceSource
 
 
 @dataclass
@@ -28,4 +29,5 @@ class FakePriceSource:
         return answer
 
 
-# The mypy check against the PriceSource Protocol is added with the Protocol itself (T018).
+def _satisfies_protocol(fake: FakePriceSource) -> PriceSource:
+    return fake  # mypy checks FakePriceSource against the PriceSource Protocol here
