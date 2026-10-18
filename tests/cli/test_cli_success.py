@@ -6,7 +6,13 @@ import pytest
 from typer.testing import CliRunner
 
 from monero_income import cli
-from monero_income.orchestration import CliOptions, PricingSummary, Reporter, RunResult
+from monero_income.orchestration import (
+    CliOptions,
+    PricingSummary,
+    Reporter,
+    RunResult,
+    StopReason,
+)
 
 runner = CliRunner()
 
@@ -137,3 +143,61 @@ def test_key_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch) -> No
     assert result.exit_code == 0
     assert fake.options == [CliOptions(coingecko_api_key=KEY, coingecko_api_key_type="pro")]
     assert KEY not in result.output  # SC-008
+
+
+@pytest.mark.parametrize(
+    ("pricing", "lines"),
+    [
+        (PricingSummary(no_price=6), ["6 days still have no price; a later run will try again."]),
+        (PricingSummary(no_price=1), ["1 day still has no price; a later run will try again."]),
+        (
+            PricingSummary(not_refreshed=2),
+            ["2 provisional prices couldn't be refreshed; a later run will try again."],
+        ),
+        (
+            PricingSummary(not_refreshed=1),
+            ["1 provisional price couldn't be refreshed; a later run will try again."],
+        ),
+    ],
+)
+def test_lines_for_days_still_needing_a_price(
+    monkeypatch: pytest.MonkeyPatch, pricing: PricingSummary, lines: list[str]
+) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(1, pricing))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout.splitlines() == ["Recorded 1 new transaction.", *lines]
+
+
+@pytest.mark.parametrize(
+    ("stopped", "warning"),
+    [
+        (
+            StopReason("rate_limited", "the price source is rate-limiting requests"),
+            "Warning: price lookups stopped: the price source is rate-limiting requests",
+        ),
+        (
+            StopReason("key_rejected", "the price source rejected the API key"),
+            "Warning: price lookups stopped: the price source rejected the API key",
+        ),
+        (
+            StopReason("unavailable", "cannot reach the price source: HTTP 503"),
+            "Warning: price lookups stopped: cannot reach the price source: HTTP 503",
+        ),
+    ],
+)
+def test_stop_warning_goes_to_stderr_and_the_run_succeeds(
+    monkeypatch: pytest.MonkeyPatch, stopped: StopReason, warning: str
+) -> None:
+    pricing = PricingSummary(priced=2, no_price=3, stopped=stopped)
+    monkeypatch.setattr(cli, "run", FakeRun(1, pricing))
+
+    result = runner.invoke(
+        cli.app, ["--coingecko-api-key", KEY, "--coingecko-api-key-type", "demo"]
+    )
+
+    assert result.exit_code == 0
+    assert result.stderr == warning + "\n"
+    assert "Traceback" not in result.output
+    assert KEY not in result.output

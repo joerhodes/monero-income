@@ -55,14 +55,18 @@ def main_command(
         coingecko_api_key=coingecko_api_key,
         coingecko_api_key_type=coingecko_api_key_type,
     )
+    reporter = StderrReporter()
     try:
-        result = run(options, StderrReporter())
+        result = run(options, reporter)
     except RunError as error:
         _fail(str(error), 1)
     except KeyboardInterrupt:
         _fail("interrupted; anything already recorded was kept", 130)
     except Exception as error:
         _fail(f"unexpected {type(error).__name__}: {error}", 1)
+    if result.pricing.stopped is not None:
+        # A price-source problem: warn and carry on; the run still succeeds (FR-009).
+        reporter.warning(f"price lookups stopped: {result.pricing.stopped.reason}")
     for line in _summary_lines(result):
         typer.echo(line)
 
@@ -79,6 +83,17 @@ def _summary_lines(result: RunResult) -> list[str]:
         if pricing.provisional:
             priced += f" ({pricing.provisional} provisional)"
         lines.append(priced + ".")
+    if pricing.no_price:
+        verb = "has" if pricing.no_price == 1 else "have"
+        lines.append(
+            f"{pricing.no_price} {_plural(pricing.no_price, 'day')} still {verb} no price;"
+            " a later run will try again."
+        )
+    if pricing.not_refreshed:
+        lines.append(
+            f"{pricing.not_refreshed} provisional {_plural(pricing.not_refreshed, 'price')}"
+            " couldn't be refreshed; a later run will try again."
+        )
     if pricing.all_final:
         lines.append("All transactions are valued.")
     return lines

@@ -255,7 +255,7 @@ reports 6 with no price, and exits 0. The next run requests only the other 6.
 
 ### Tests for User Story 2 ⚠️ (write first, confirm they fail)
 
-- [ ] T024 [P] [US2] Write `tests/integration/test_pricing_failures.py` (a `tmp_path` database, the fakes). Cover:
+- [X] T024 [P] [US2] Write `tests/integration/test_pricing_failures.py` (a `tmp_path` database, the fakes). Cover:
   - **US2-1:** `PriceUnavailableError` on the 5th of 10 days → 4 prices kept, `no_price == 6`, `stopped.kind == "unavailable"`, no exception; the next run requests exactly the remaining 6.
   - **US2-2:** a 429 → `RecordingSleep` gets `10.0`, the same day is retried, and a second 429 stops the run with `rate_limited`, making 0 further requests (SC-011). A 429 with `retry_after=30` sleeps 30; `retry_after=120` is capped at 60.
   - **US2-3:** `KeyboardInterrupt` on the 3rd day propagates, 2 prices are kept, and the next run requests only the rest.
@@ -266,14 +266,14 @@ reports 6 with no price, and exits 0. The next run requests only the other 6.
   - **FR-023:** a provisional day whose refresh fails keeps its price and is counted in `not_refreshed`.
   - **Key rejected:** `PriceKeyRejectedError` → `stopped.kind == "key_rejected"`.
   - **SC-005 equivalence:** for the US2-1 (unavailable) and US2-3 (`KeyboardInterrupt`) cases, after the follow-up run, `SELECT date_utc, usd_price, status FROM daily_prices ORDER BY date_utc` equals the same query on a fresh `tmp_path` database priced by one uninterrupted run on the same fake data. Both runs use the same fixed `FakeClock` time, so statuses are comparable.
-- [ ] T025 [P] [US2] Add to `tests/cli/test_cli_success.py`:
+- [X] T025 [P] [US2] Add to `tests/cli/test_cli_success.py`:
   - `N days still have no price; a later run will try again.`;
   - `N provisional prices couldn't be refreshed; a later run will try again.`;
   - for each `StopReason`, stderr shows the matching `Warning: price lookups stopped: …` line from contracts/cli.md, with exit 0, the key not shown, and no `Traceback`.
 
 ### Implementation for User Story 2
 
-- [ ] T026 [US2] Extend `price_days` in `src/monero_income/orchestration/pricing.py`:
+- [X] T026 [US2] Extend `price_days` in `src/monero_income/orchestration/pricing.py`:
   - **Pacing:** before every request except the first, sleep `max(0, delay - (clock() - last_request))`.
   - **Rate limit:** on `PriceRateLimitedError`, sleep `min(retry_after or 10, 60)` and retry the same day once; on a second 429, stop with `rate_limited`.
   - **Other source errors:** `PriceKeyRejectedError` → stop with `key_rejected`; `PriceUnavailableError` → stop with `unavailable` and the reason.
@@ -281,7 +281,7 @@ reports 6 with no price, and exits 0. The next run requests only the other 6.
   - **Storage errors and `KeyboardInterrupt`:** propagate.
 
   This makes T024 pass.
-- [ ] T027 [US2] Update `src/monero_income/cli.py` to print the `no_price` and `not_refreshed` lines, and to send the stop warning through the reporter (`Warning: …`, stderr) with exit status 0. This makes T025 pass.
+- [X] T027 [US2] Update `src/monero_income/cli.py` to print the `no_price` and `not_refreshed` lines, and to send the stop warning through the reporter (`Warning: …`, stderr) with exit status 0. This makes T025 pass.
 
 **Checkpoint**: US1 and US2 pass; price-source failures never fail a run, and storage failures always do
 
