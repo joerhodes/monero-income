@@ -49,3 +49,7 @@ Things to know:
   and every test errored. It now loads the module with importlib.import_module.
 - Price-source failures aren't handled yet; that's Phase 4 (US2). If CoinGecko is unreachable or rate-limits the run, the error currently escapes run(), and the CLI shows Error: unexpected PriceUnavailableError: … with exit 1. US2 turns these into a warning, keeps every recorded price and exits 0. Until then, a real run against an unreachable price source fails after the sync. The sync results are still saved, because the sync commits before pricing starts.
 - Uncovered lines in pricing.py (86%). The "no price" and "outside history" branches are exercised by the US2 and US3 tests.
+
+## Notes
+All gates run successfully.
+All tasks for Phase 3 marked as done.
