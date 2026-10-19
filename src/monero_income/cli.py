@@ -35,6 +35,13 @@ def main_command(
         ),
     ] = None,
     db_path: Annotated[str | None, typer.Option("--db-path", help="SQLite database file.")] = None,
+    import_prices: Annotated[
+        str | None,
+        typer.Option(
+            "--import-prices",
+            help="Import daily USD prices for old days from a CSV file (date_utc,usd_price).",
+        ),
+    ] = None,
     coingecko_api_key: Annotated[
         str | None,
         typer.Option(
@@ -52,6 +59,7 @@ def main_command(
         rpc_url=rpc_url,
         username=username,
         db_path=db_path,
+        import_prices=import_prices,
         coingecko_api_key=coingecko_api_key,
         coingecko_api_key_type=coingecko_api_key_type,
     )
@@ -77,6 +85,12 @@ def _summary_lines(result: RunResult) -> list[str]:
         lines = ["No new transactions found."]
     else:
         lines = [f"Recorded {result.recorded} new {_plural(result.recorded, 'transaction')}."]
+    if result.imported is not None:
+        imported, skipped = result.imported.imported, result.imported.skipped
+        lines.append(
+            f"Imported {imported} {_plural(imported, 'price')};"
+            f" skipped {skipped} {_plural(skipped, 'row')}."
+        )
     pricing = result.pricing
     if pricing.priced:
         priced = f"Priced {pricing.priced} {_plural(pricing.priced, 'day')}"

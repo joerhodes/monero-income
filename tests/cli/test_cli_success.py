@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from monero_income import cli
 from monero_income.orchestration import (
     CliOptions,
+    ImportSummary,
     PricingSummary,
     Reporter,
     RunResult,
@@ -18,14 +19,20 @@ runner = CliRunner()
 
 
 class FakeRun:
-    def __init__(self, recorded: int, pricing: PricingSummary | None = None) -> None:
+    def __init__(
+        self,
+        recorded: int,
+        pricing: PricingSummary | None = None,
+        imported: ImportSummary | None = None,
+    ) -> None:
         self.recorded = recorded
         self.pricing = pricing or PricingSummary()
+        self.imported = imported
         self.options: list[CliOptions] = []
 
     def __call__(self, options: CliOptions, reporter: Reporter) -> RunResult:
         self.options.append(options)
-        return RunResult(recorded=self.recorded, pricing=self.pricing)
+        return RunResult(recorded=self.recorded, imported=self.imported, pricing=self.pricing)
 
 
 @pytest.mark.parametrize(
@@ -228,3 +235,35 @@ def test_too_old_line(monkeypatch: pytest.MonkeyPatch, too_old: int, line: str) 
         "1 day still has no price; a later run will try again.",
         line,
     ]
+
+
+def test_import_prices_option_maps_onto_cli_options(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    fake = FakeRun(0)
+    monkeypatch.setattr(cli, "run", fake)
+    csv = str(tmp_path / "prices.csv")
+
+    result = runner.invoke(cli.app, ["--import-prices", csv])
+
+    assert result.exit_code == 0
+    assert fake.options == [CliOptions(import_prices=csv)]
+
+
+@pytest.mark.parametrize(
+    ("imported", "line"),
+    [
+        (ImportSummary(imported=2, skipped=3), "Imported 2 prices; skipped 3 rows."),
+        (ImportSummary(imported=1, skipped=1), "Imported 1 price; skipped 1 row."),
+        (ImportSummary(imported=0, skipped=0), "Imported 0 prices; skipped 0 rows."),
+    ],
+)
+def test_import_line_comes_before_the_pricing_lines(
+    monkeypatch: pytest.MonkeyPatch, imported: ImportSummary, line: str
+) -> None:
+    pricing = PricingSummary(priced=2)
+    monkeypatch.setattr(cli, "run", FakeRun(1, pricing, imported))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout.splitlines() == ["Recorded 1 new transaction.", line, "Priced 2 days."]

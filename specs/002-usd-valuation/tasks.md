@@ -324,7 +324,7 @@ source.
 
 ### Tests for User Story 4 ⚠️ (write first, confirm they fail)
 
-- [ ] T032 [P] [US4] Write `tests/unit/test_price_import_parse.py` for `parse_import(text) -> list[ImportRow]` (contracts/import-csv.md). Cover:
+- [X] T032 [P] [US4] Write `tests/unit/test_price_import_parse.py` for `parse_import(text) -> list[ImportRow]` (contracts/import-csv.md). Cover:
   - **Valid input:** a valid file with a BOM-free header; blank lines ignored; surrounding whitespace trimmed; `usd_price` kept exact (`"151.234"` → `Decimal("151.234")`).
   - **Rejected input:** each case raises `ImportFileError` naming the first bad line (header is line 1):
     - a header other than `date_utc,usd_price`;
@@ -335,26 +335,26 @@ source.
     - `1e2`, `NaN`, or `1,000.5`;
     - a duplicate date (`date 2024-03-01 already on line 4`).
   - **Selection:** `select_imports(rows, priced_days, cutoff)` keeps rows dated before the cutoff with no price and counts the rest as skipped.
-- [ ] T033 [P] [US4] Write `tests/integration/test_price_import.py` (a `tmp_path` database and CSV file, the fakes, `CliOptions(import_prices=…)`). Cover:
+- [X] T033 [P] [US4] Write `tests/integration/test_price_import.py` (a `tmp_path` database and CSV file, the fakes, `CliOptions(import_prices=…)`). Cover:
   - **US4-1/2/3:** 2 imported with `status = 'final'` and `source = 'import'`, 3 skipped, the existing price unchanged, and the recent days requested from the source.
   - **US4-4:** a bad row on line 4 → `RunError` containing `cannot import prices from` and `line 4`; nothing imported, 0 price requests, the file bytes unchanged.
   - **US4-5:** importing again → `imported == 0`, every row skipped.
   - **US4-6:** a failed sync → no import and no lookups.
   - **Missing file:** a file that doesn't exist → `RunError`.
-- [ ] T034 [P] [US4] Add to `tests/cli/test_cli_success.py`: `--import-prices PATH` maps onto `CliOptions`, and the line `Imported 2 prices; skipped 3 rows.` (with singular forms) comes before the pricing lines.
+- [X] T034 [P] [US4] Add to `tests/cli/test_cli_success.py`: `--import-prices PATH` maps onto `CliOptions`, and the line `Imported 2 prices; skipped 3 rows.` (with singular forms) comes before the pricing lines.
 
 ### Implementation for User Story 4
 
-- [ ] T035 [US4] Implement `src/monero_income/primitives/price_import_file.py`:
+- [X] T035 [US4] Implement `src/monero_income/primitives/price_import_file.py`:
   - `read_import_file(path: Path) -> str`, which opens with `encoding="utf-8-sig"` and turns an `OSError` into `ImportFileError(None, <reason>)`;
   - `parse_import(text: str) -> list[ImportRow]`, pure, using `csv.reader`, `date.fromisoformat` with an exact `YYYY-MM-DD` check, and a price regex `^[0-9]+(\.[0-9]+)?$` with value > 0.
 
   This makes the parse half of T032 pass.
-- [ ] T036 [US4] Implement `src/monero_income/orchestration/price_import.py`:
+- [X] T036 [US4] Implement `src/monero_income/orchestration/price_import.py`:
   - `select_imports(rows, priced_days, cutoff) -> tuple[list[ImportRow], int]`, pure;
   - `import_prices(conn, path, *, today, clock) -> ImportSummary`, which reads, parses (validating the whole file before writing anything), selects using `priced_days` and `history_cutoff(today)`, and calls `insert_imported` with `DailyPrice(status="final", source="import", fetched_at=…)` in one transaction.
-- [ ] T037 [US4] Update `run()` in `src/monero_income/orchestration/run.py`: after a successful sync and before `price_days`, call `import_prices` when `settings.import_prices` is set, and put the result in `RunResult.imported`. `ImportFileError` → `RunError(f"cannot import prices from {path}: {error}")`; storage errors go through `_run_error` (FR-020, FR-025).
-- [ ] T038 [US4] Update `src/monero_income/cli.py`: add the `--import-prices` option and print the import line before the pricing lines. This makes T032–T034 pass.
+- [X] T037 [US4] Update `run()` in `src/monero_income/orchestration/run.py`: after a successful sync and before `price_days`, call `import_prices` when `settings.import_prices` is set, and put the result in `RunResult.imported`. `ImportFileError` → `RunError(f"cannot import prices from {path}: {error}")`; storage errors go through `_run_error` (FR-020, FR-025).
+- [X] T038 [US4] Update `src/monero_income/cli.py`: add the `--import-prices` option and print the import line before the pricing lines. This makes T032–T034 pass.
 
 **Checkpoint**: All four stories pass independently
 

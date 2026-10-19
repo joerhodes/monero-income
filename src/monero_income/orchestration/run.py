@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from monero_income.orchestration.errors import RunError
-from monero_income.orchestration.price_import import ImportSummary
+from monero_income.orchestration.price_import import ImportSummary, import_prices
 from monero_income.orchestration.pricing import PricingSummary, price_days
 from monero_income.orchestration.settings import (
     CliOptions,
@@ -23,6 +23,7 @@ from monero_income.primitives.config_file import read_config
 from monero_income.primitives.database import open_database
 from monero_income.primitives.errors import (
     ConfigFileError,
+    ImportFileError,
     SchemaTooNewError,
     StorageError,
     StorageReadError,
@@ -76,7 +77,7 @@ def run(
     clock: Callable[[], datetime] | None = None,
     sleep: Callable[[float], None] | None = None,
 ) -> RunResult:
-    """Run once: resolve settings, open the database, sync, then price.
+    """Run once: resolve settings, open the database, sync, import (if asked), then price.
 
     ``config_path`` defaults to ``~/.config/monero-income/config.toml``, expanded
     at call time; so are the price source, clock, and sleep defaults. Every
@@ -103,6 +104,16 @@ def run(
                 recorded = sync(conn, wallet)
             finally:
                 _close(wallet)
+            imported = None
+            if settings.import_prices is not None:
+                try:
+                    imported = import_prices(
+                        conn, settings.import_prices, today=now().date(), clock=now
+                    )
+                except ImportFileError as error:
+                    raise RunError(
+                        f"cannot import prices from {settings.import_prices}: {error}"
+                    ) from error
             source = make_source(settings)
             try:
                 pricing = price_days(
@@ -119,7 +130,7 @@ def run(
             conn.close()
     except (StorageError, WalletError) as error:
         raise _run_error(error, settings) from error
-    return RunResult(recorded=recorded, pricing=pricing)
+    return RunResult(recorded=recorded, imported=imported, pricing=pricing)
 
 
 def _close(resource: object) -> None:
