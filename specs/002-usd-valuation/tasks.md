@@ -362,16 +362,16 @@ source.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T039 [P] Extend `tests/cli/test_messages.py` if needed so the "transfer" scan covers the new orchestration modules. The glob already includes `orchestration/*.py`; confirm `pricing.py`, `price_import.py`, and `valuation.py` are scanned (FR-018).
-- [ ] T040 [P] Add a test in `tests/integration/test_key_secrecy.py` (SC-008). Run with a distinctive API key from the config file and, separately, from `--coingecko-api-key` (through `CliRunner` with a monkeypatched price source) across every outcome: success, each `StopReason`, a storage error, and an invalid config. Assert the key appears in no stdout, stderr, exception text, or `repr`.
-- [ ] T041 [P] Update the Usage section of `README.md` for pricing:
+- [X] T039 [P] Extend `tests/cli/test_messages.py` if needed so the "transfer" scan covers the new orchestration modules. The glob already includes `orchestration/*.py`; confirm `pricing.py`, `price_import.py`, and `valuation.py` are scanned (FR-018).
+- [X] T040 [P] Add a test in `tests/integration/test_key_secrecy.py` (SC-008). Run with a distinctive API key from the config file and, separately, from `--coingecko-api-key` (through `CliRunner` with a monkeypatched price source) across every outcome: success, each `StopReason`, a storage error, and an invalid config. Assert the key appears in no stdout, stderr, exception text, or `repr`.
+- [X] T041 [P] Update the Usage section of `README.md` for pricing:
   - the new config keys, including `coingecko_api_key_type` (`demo`/`pro`), with a note that the config file is preferred over `--coingecko-api-key`;
   - the pricing output lines;
   - provisional and final prices;
   - the 364-day history limit, and `--import-prices` with the CSV format.
 
   Don't change the Intro or Status sections.
-- [ ] T042 Run all gates and fix failures until all five pass with coverage ≥ 90%.
+- [X] T042 Run all gates and fix failures until all five pass with coverage ≥ 90%.
 - [ ] T043 Run the manual checks in `specs/002-usd-valuation/quickstart.md` §2 against CoinGecko (with a Demo key, and once without a key), and record the results in the PR description. Don't commit any database files.
 
 ---
