@@ -94,6 +94,12 @@ def _summary_lines(result: RunResult) -> list[str]:
             f"{pricing.not_refreshed} provisional {_plural(pricing.not_refreshed, 'price')}"
             " couldn't be refreshed; a later run will try again."
         )
+    if pricing.too_old:
+        verb, pronoun = ("is", "it") if pricing.too_old == 1 else ("are", "them")
+        lines.append(
+            f"{pricing.too_old} {_plural(pricing.too_old, 'day')} {verb} older than the price"
+            f" history and can't be looked up; use --import-prices to add {pronoun}."
+        )
     if pricing.all_final:
         lines.append("All transactions are valued.")
     return lines

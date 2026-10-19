@@ -297,17 +297,17 @@ requested, and `too_old` counts the others.
 
 ### Tests for User Story 3 ⚠️ (write first, confirm they fail)
 
-- [ ] T028 [P] [US3] Write `tests/integration/test_pricing_history.py`. Cover:
+- [X] T028 [P] [US3] Write `tests/integration/test_pricing_history.py`. Cover:
   - **US3-1 / SC-006:** with `FakeClock` at 2026-10-17, transaction days 2025-10-17 (365 days old) and 2025-10-18 (364 days old) → only 2025-10-18 is requested; `too_old == 1`.
   - **Aged-out provisional:** a provisional day older than the cutoff isn't requested, stays provisional, and is counted in `too_old`.
   - **10012 answer:** `OutsideHistory` for a day inside the cutoff → counted `too_old`, and the next (newer) day is still requested.
   - **US3-2:** `too_old`, `no_price`, and `not_refreshed` are reported as separate counts.
-- [ ] T029 [P] [US3] Add to `tests/cli/test_cli_success.py`: `2 days are older than the price history and can't be looked up; use --import-prices to add them.` and its singular form.
+- [X] T029 [P] [US3] Add to `tests/cli/test_cli_success.py`: `2 days are older than the price history and can't be looked up; use --import-prices to add them.` and its singular form.
 
 ### Implementation for User Story 3
 
-- [ ] T030 [US3] Confirm `price_days` in `src/monero_income/orchestration/pricing.py` uses `plan_lookups(needs, today)` for the cutoff, adds the planned `too_old` days to the summary, and handles `OutsideHistory` without stopping. Add whatever T028 shows is missing.
-- [ ] T031 [US3] Update `src/monero_income/cli.py` to print the `too_old` line. This makes T028 and T029 pass.
+- [X] T030 [US3] Confirm `price_days` in `src/monero_income/orchestration/pricing.py` uses `plan_lookups(needs, today)` for the cutoff, adds the planned `too_old` days to the summary, and handles `OutsideHistory` without stopping. Add whatever T028 shows is missing.
+- [X] T031 [US3] Update `src/monero_income/cli.py` to print the `too_old` line. This makes T028 and T029 pass.
 
 **Checkpoint**: US1–US3 pass
 

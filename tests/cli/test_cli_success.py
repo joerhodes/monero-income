@@ -201,3 +201,30 @@ def test_stop_warning_goes_to_stderr_and_the_run_succeeds(
     assert result.stderr == warning + "\n"
     assert "Traceback" not in result.output
     assert KEY not in result.output
+
+
+@pytest.mark.parametrize(
+    ("too_old", "line"),
+    [
+        (
+            2,
+            "2 days are older than the price history and can't be looked up;"
+            " use --import-prices to add them.",
+        ),
+        (
+            1,
+            "1 day is older than the price history and can't be looked up;"
+            " use --import-prices to add it.",
+        ),
+    ],
+)
+def test_too_old_line(monkeypatch: pytest.MonkeyPatch, too_old: int, line: str) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(1, PricingSummary(no_price=1, too_old=too_old)))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout.splitlines() == [
+        "Recorded 1 new transaction.",
+        "1 day still has no price; a later run will try again.",
+        line,
+    ]
