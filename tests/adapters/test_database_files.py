@@ -19,7 +19,7 @@ def test_missing_file_and_directory_are_created(tmp_path: Path) -> None:
     conn = open_database(db_path)
     try:
         assert db_path.is_file()
-        assert user_version(conn) == 1
+        assert user_version(conn) == 2
     finally:
         conn.close()
 
@@ -55,7 +55,7 @@ def test_unreadable_file_is_an_error_and_left_unchanged(tmp_path: Path) -> None:
 def test_newer_schema_is_refused(tmp_path: Path) -> None:
     db_path = tmp_path / "xmr.db"
     raw = sqlite3.connect(db_path)
-    raw.execute("PRAGMA user_version = 2")
+    raw.execute("PRAGMA user_version = 3")
     raw.commit()
     raw.close()
 

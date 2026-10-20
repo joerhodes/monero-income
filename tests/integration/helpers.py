@@ -3,14 +3,14 @@
 import sqlite3
 from pathlib import Path
 
-from monero_income.orchestration import CliOptions, SyncResult, run
+from monero_income.orchestration import CliOptions, RunResult, run
 from tests.fakes.reporter import ListReporter
 from tests.fakes.wallet import FakeWalletRpc
 
 Row = tuple[str, int, int, int, str]
 
 
-def run_once(db_path: Path, wallet: FakeWalletRpc, config_path: Path | None = None) -> SyncResult:
+def run_once(db_path: Path, wallet: FakeWalletRpc, config_path: Path | None = None) -> RunResult:
     return run(
         CliOptions(db_path=str(db_path)),
         ListReporter(),

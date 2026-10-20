@@ -34,18 +34,18 @@ def insert(
     )
 
 
-def test_migrating_from_empty_creates_schema_v1(conn: sqlite3.Connection) -> None:
+def test_migrating_from_empty_creates_current_schema(conn: sqlite3.Connection) -> None:
     migrate(conn)
 
-    assert SCHEMA_VERSION == 1
-    assert user_version(conn) == 1
+    assert SCHEMA_VERSION == 2
+    assert user_version(conn) == 2
     names = {
         row[0]
         for row in conn.execute("SELECT name FROM sqlite_master WHERE type IN ('table', 'index')")
     }
-    assert {"transactions", "transactions_height_idx"} <= names
+    assert {"transactions", "transactions_height_idx", "daily_prices"} <= names
     conn.rollback()  # the migration was committed, so rolling back now loses nothing
-    assert user_version(conn) == 1
+    assert user_version(conn) == 2
 
 
 @pytest.mark.parametrize(
@@ -86,15 +86,95 @@ def test_migrating_current_schema_is_a_no_op(conn: sqlite3.Connection) -> None:
 
     migrate(conn)
 
-    assert user_version(conn) == 1
+    assert user_version(conn) == 2
     assert conn.execute("SELECT count(*) FROM transactions").fetchone()[0] == 1
 
 
 def test_newer_schema_is_refused(conn: sqlite3.Connection) -> None:
-    conn.execute("PRAGMA user_version = 2")
+    conn.execute("PRAGMA user_version = 3")
     conn.commit()
 
     with pytest.raises(SchemaTooNewError) as excinfo:
         migrate(conn)
 
-    assert excinfo.value.found == 2
+    assert excinfo.value.found == 3
+
+
+# --- schema version 2: daily_prices ---------------------------------------------------------
+
+
+def insert_price(
+    conn: sqlite3.Connection,
+    date_utc: str = "2026-10-16",
+    usd_price: str = "152.3456",
+    status: str = "provisional",
+    source: str = "api",
+) -> None:
+    conn.execute(
+        "INSERT INTO daily_prices (date_utc, usd_price, status, source, fetched_at)"
+        " VALUES (?, ?, ?, ?, 0)",
+        (date_utc, usd_price, status, source),
+    )
+
+
+def test_migrating_a_version_1_database_keeps_its_rows(conn: sqlite3.Connection) -> None:
+    migrate(conn, to_version=1)
+    insert(conn, occurred_at=1704067200)
+    conn.commit()
+    assert user_version(conn) == 1
+
+    migrate(conn)
+
+    assert user_version(conn) == 2
+    assert conn.execute("SELECT txid, occurred_date FROM transactions").fetchall() == [
+        (TXID, "2024-01-01")
+    ]
+    assert conn.execute("SELECT count(*) FROM daily_prices").fetchone()[0] == 0
+
+
+@pytest.mark.parametrize(
+    ("date_utc", "status", "source"),
+    [
+        ("2026-1-16", "provisional", "api"),  # GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'
+        ("16-10-2026", "provisional", "api"),
+        ("2026-10-16", "pending", "api"),  # status IN ('provisional', 'final')
+        ("2026-10-16", "final", "csv"),  # source IN ('api', 'import')
+    ],
+)
+def test_daily_prices_checks_reject_bad_rows(
+    conn: sqlite3.Connection, date_utc: str, status: str, source: str
+) -> None:
+    migrate(conn)
+
+    with pytest.raises(sqlite3.IntegrityError):
+        insert_price(conn, date_utc=date_utc, status=status, source=source)
+
+
+def test_final_price_cannot_be_updated(conn: sqlite3.Connection) -> None:
+    migrate(conn)
+    insert_price(conn, status="final")
+    conn.commit()
+
+    with pytest.raises(sqlite3.IntegrityError, match="final price is immutable"):
+        conn.execute("UPDATE daily_prices SET usd_price = '1' WHERE date_utc = '2026-10-16'")
+
+
+def test_provisional_price_can_be_updated(conn: sqlite3.Connection) -> None:
+    migrate(conn)
+    insert_price(conn, status="provisional")
+
+    conn.execute(
+        "UPDATE daily_prices SET usd_price = '150', status = 'final' WHERE date_utc = '2026-10-16'"
+    )
+
+    row = conn.execute("SELECT usd_price, status FROM daily_prices").fetchone()
+    assert row == ("150", "final")
+
+
+@pytest.mark.parametrize("status", ["provisional", "final"])
+def test_prices_cannot_be_deleted(conn: sqlite3.Connection, status: str) -> None:
+    migrate(conn)
+    insert_price(conn, status=status)
+
+    with pytest.raises(sqlite3.IntegrityError, match="prices are never deleted"):
+        conn.execute("DELETE FROM daily_prices")
