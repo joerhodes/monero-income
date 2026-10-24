@@ -5,21 +5,76 @@ Monero wallet, valuing each payout at its historical USD price.
 
 ## Intro
 
-This is a spec-driven development (SDD) rewrite of one of my existing
-projects. The rewrite has two goals:
+This is a spec-driven development (SDD) rewrite of a tool I originally
+built by hand. The rewrite has two goals:
 
 - Try out [GitHub Spec Kit](https://github.com/github/spec-kit) for SDD,
-  from constitution through implementation.
-- Deliver a few items from the original project's roadmap: price
-  finalization for recent days, and default row limits on the weekly and
-  monthly tables.
+  from constitution through implementation, on a project small enough to
+  finish and real enough to matter. I run it against my own wallet.
+- Deliver a few items from the original project's roadmap along the way.
 
-The original version remains the reference implementation. This rewrite
-is expected to produce matching reports for the same data.
+The original version is the reference for behavior. The rewrite matches it
+except where a spec says otherwise: most notably, prices are looked up by
+UTC day (the original used local dates, which was a bug), and recent prices
+stay provisional until the day settles.
 
-## Status
+## Status and roadmap
 
-Feature 001 (wallet sync) in complete.
+| Feature | Status | What it covers |
+|---|---|---|
+| [001 wallet sync](specs/001-sync-incoming-transactions/) | Done | Records incoming transactions in SQLite; safe to re-run and resume |
+| [002 USD valuation](specs/002-usd-valuation/) | Done | Daily CoinGecko prices, provisional/final pricing, CSV import for old days |
+| 003 [reports] | Next | Weekly and monthly income tables |
+| [004 …] | Planned | [CSV output, default row limits on tables] |
+
+## Where to look
+
+The repo follows Spec Kit's layout:
+
+- `.specify/memory/constitution.md`: the project's ground rules
+  (Python style, single responsibility, testing expectations). Every plan is
+  checked against it.
+- `specs/NNN-name/`: one folder per feature, each with:
+  - `spec.md`: what and why, no implementation details
+  - `plan.md`: technical approach, checked against the constitution
+  - `tasks.md`: the ordered task list that drove implementation
+  - [`research.md`, `data-model.md`, `contracts/`, `quickstart.md` as present]
+- `src/`, `tests/`: the implementation and its tests.
+- `docs/sdd-log/`: my Claude Code sessions for every Spec Kit command, in
+  the order they ran (`25-plan-002.md` is session 25, `/speckit.plan` for
+  feature 002). The clarify and plan sessions show where requirements changed
+  and why. For a good example, see the rate-limit conflict in
+  [`25-plan-002.md`](docs/sdd-log/25-plan-002.md).
+
+If you only read one feature, read
+[002](specs/002-usd-valuation/spec.md). Provisional versus final prices
+is where the spec did the most work.
+
+## How I used AI
+
+Claude wrote most of the code from the Spec Kit artifacts. My part
+was the constitution, reviewing and revising each spec and plan before
+implementation, and testing the results by hand against my own wallet.
+I can explain and defend every design decision in this repo.
+
+I started this experiment skeptical. SDD felt heavy for a tool this
+size, and my habit with agentic editors is to hand them small, well-scoped
+tasks one at a time. After implementing two features, I can see the appeal.
+Once the constitution and the foundational spec were worked out, both the
+code and later feature specs came together quickly. The planning phase
+surfaced issues that could have become bugs, whether from conflicting
+requirements or underspecified behavior, and they were fixed in the spec
+before any code was written. 
+
+For example, the plan for spec 002 showed that two of my success criteria 
+couldn't both hold: without an API key, CoinGecko's rate limits make 
+pricing a year of history in under five minutes impossible without being 
+refused. I first limited the speed target to runs with a key, then dropped
+it entirely. For a personal tool, a slow first run matters less than 
+staying within the published limits and never losing a recorded price 
+when a request is refused. I can see this method being a big benefit for 
+new projects, and I expect that adding a constitution to an existing 
+project would make new features and bug fixes go much more smoothly.
 
 ## Usage
 
