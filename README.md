@@ -191,3 +191,7 @@ Imported 2 prices; skipped 3 rows.
 Errors print a single `Error: …` line on standard error, never a traceback.
 Exit status: `0` success, `1` error, `2` command-line usage error, `130`
 interrupted (Ctrl-C).
+
+## License
+
+[MIT](LICENSE)
