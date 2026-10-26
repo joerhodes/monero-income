@@ -252,7 +252,7 @@ error message.
 
 ### Tests for User Story 3 ⚠️ (write first, confirm they fail)
 
-- [ ] T025 [P] [US3] Create `tests/integration/test_export_location.py` with `run()` cases (US3-1 to US3-6):
+- [X] T025 [P] [US3] Create `tests/integration/test_export_location.py` with `run()` cases (US3-1 to US3-6):
   - **US3-1**: the default writes `<HOME>/reports/xmr_income.csv`.
   - **US3-2**: a config file with `reports_path = "<tmp>/cfg-reports"` writes there.
   - **US3-3**: the config key plus `CliOptions(reports_path="<tmp>/opt-reports")` uses the option.
@@ -261,11 +261,11 @@ error message.
   - **Relative path**: `"rel"` resolves against the current directory (use `monkeypatch.chdir(tmp_path)`), and `ExportSummary.path` is absolute.
   - **US3-6**: `reports_path = 5`, `reports_path = ""` in the file, and `CliOptions(reports_path="")` each raise `RunError` before the wallet is contacted, and the fake wallet's call log is empty.
   - **US3-7**: with `fcntl.flock` in `monero_income.primitives.export_file` monkeypatched to raise `OSError(errno.ENOLCK, …)`, `run()` raises `RunError` with the message `cannot write export <abs path>: the filesystem doesn't support file locking (some network shares don't); write the export to a local directory and copy it. Recorded transactions and prices were kept; the previous export was not changed.`
-- [ ] T026 [P] [US3] Add to `tests/cli/test_cli_success.py`: `--reports-path /x/y` maps onto `CliOptions(reports_path="/x/y")`, extending `test_options_map_onto_cli_options`, and omitting it gives `None`.
+- [X] T026 [P] [US3] Add to `tests/cli/test_cli_success.py`: `--reports-path /x/y` maps onto `CliOptions(reports_path="/x/y")`, extending `test_options_map_onto_cli_options`, and omitting it gives `None`.
 
 ### Implementation for User Story 3
 
-- [ ] T027 [US3] Add the `--reports-path` option to `main_command` in `src/monero_income/cli.py`: `reports_path: Annotated[str | None, typer.Option("--reports-path", help="Directory for the xmr_income.csv export (default ~/reports).")] = None`. Pass it into `CliOptions(reports_path=reports_path)`. Place it after `--db-path`, matching contracts/cli.md's usage line.
+- [X] T027 [US3] Add the `--reports-path` option to `main_command` in `src/monero_income/cli.py`: `reports_path: Annotated[str | None, typer.Option("--reports-path", help="Directory for the xmr_income.csv export (default ~/reports).")] = None`. Pass it into `CliOptions(reports_path=reports_path)`. Place it after `--db-path`, matching contracts/cli.md's usage line.
 
 **Checkpoint**: All three ways of choosing the directory work; invalid config fails before syncing.
 

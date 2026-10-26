@@ -70,12 +70,19 @@ def test_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch, tmp_path:
             "monero",
             "--db-path",
             db_path,
+            "--reports-path",
+            "/x/y",
         ],
     )
 
     assert result.exit_code == 0
     assert fake.options == [
-        CliOptions(rpc_url="http://127.0.0.1:18083/json_rpc", username="monero", db_path=db_path)
+        CliOptions(
+            rpc_url="http://127.0.0.1:18083/json_rpc",
+            username="monero",
+            db_path=db_path,
+            reports_path="/x/y",
+        )
     ]
 
 
