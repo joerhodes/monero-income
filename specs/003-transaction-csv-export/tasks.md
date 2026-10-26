@@ -212,7 +212,7 @@ error message.
 
 ### Tests for User Story 2 ⚠️ (write first, confirm they fail)
 
-- [ ] T020 [P] [US2] Add to `tests/adapters/test_export_file.py`:
+- [X] T020 [P] [US2] Add to `tests/adapters/test_export_file.py`:
   - **Failure mid-write**: a `rows` iterable that yields two rows then raises `OSError(errno.ENOSPC, "No space left on device")`. `write_export` raises `ExportWriteError` whose message contains `No space left on device`. A previously written export is byte-for-byte unchanged, and no `.xmr_income.csv.*.tmp` file remains (US2-3, US2-4).
   - **Interrupt mid-write**: the same, but raising `KeyboardInterrupt`. It propagates unchanged (not wrapped), the old file is unchanged, and no temporary file remains (US2-2).
   - **No previous export**: either failure leaves no `xmr_income.csv` (US2-4).
@@ -221,23 +221,23 @@ error message.
   - **Lock**: while a test holds `fcntl.flock(dir_fd, LOCK_EX | LOCK_NB)` on the directory, a `write_export` in a thread blocks, then completes once the lock is released. Use a short timeout and `threading.Event`, with no real sleeps beyond the join timeout.
   - **Directory problems**: the reports path is an existing regular file → `ExportWriteError` (`Not a directory` / `File exists`). A directory with mode `0o500` → `ExportWriteError` (`Permission denied`); skip this case when running as root (`os.geteuid() == 0`).
   - **Locking unsupported** (FR-027, US3-7): monkeypatch `monero_income.primitives.export_file.fcntl.flock` to raise `OSError(code, os.strerror(code))`, parametrized over `errno.ENOLCK`, `errno.ENOTSUP`, and `errno.EOPNOTSUPP`. Each case gives `ExportLockUnsupportedError` with exactly the message in contracts/cli.md. A pre-written export is byte-for-byte unchanged, and no temporary file is created. A different `flock` error, such as `errno.EBADF`, gives a plain `ExportWriteError`, not the subclass.
-- [ ] T021 [P] [US2] Create `tests/integration/test_export_failures.py`:
+- [X] T021 [P] [US2] Create `tests/integration/test_export_failures.py`:
   - After a good run, a second `run()` with `CliOptions(reports_path=<path of a regular file>)` raises `RunError`, with the exact message `cannot write export <abs path>/xmr_income.csv: <reason>. Recorded transactions and prices were kept; the previous export was not changed.`, matched with a regex on `<reason>`. The transactions recorded by that run are in the database (US2-6, FR-008).
   - A run with `monero_income.orchestration.export.write_export` monkeypatched to raise `KeyboardInterrupt` propagates `KeyboardInterrupt`, the previous export is unchanged, and the run's recorded transactions are kept.
-- [ ] T022 [P] [US2] Add to `tests/cli/test_cli_errors.py`:
+- [X] T022 [P] [US2] Add to `tests/cli/test_cli_errors.py`:
   - A `RunError` from the export prints `Error: cannot write export …` on stderr, exits 1, and prints nothing on stdout (contracts/cli.md: the sync and pricing lines aren't printed on failure).
   - `KeyboardInterrupt` still exits 130 with feature 001's message.
 
 ### Implementation for User Story 2
 
-- [ ] T023 [US2] Harden `write_export` in `src/monero_income/primitives/export_file.py` (research R1–R3, data-model.md):
+- [X] T023 [US2] Harden `write_export` in `src/monero_income/primitives/export_file.py` (research R1–R3, data-model.md):
   1. After `mkdir`, open the directory with `os.open(directory, os.O_RDONLY)` and take `fcntl.flock(dir_fd, fcntl.LOCK_EX)`. Hold the lock for the rest of the function and close `dir_fd` in a `finally`, which releases it.
   2. Under the lock, delete every `directory.glob(f".{name}.*.tmp")` entry (`missing_ok=True`).
   3. Write the temporary file as in T015, inside `try`. On **any** `BaseException`, unlink the temporary file (`missing_ok=True`) and re-raise.
   4. After `os.replace`, call `os.fsync(dir_fd)`.
   5. If `flock` raises `OSError` with `errno` in `{errno.ENOLCK, errno.ENOTSUP, errno.EOPNOTSUPP}`, raise `ExportLockUnsupportedError()` from it, before any temporary file is created (FR-027, research R3).
   6. Translate any other `OSError` from any step (mkdir, open, flock, write, fsync, replace) into `ExportWriteError(error.strerror or type(error).__name__)`, raised `from error`. Never translate `KeyboardInterrupt` or other non-`OSError` exceptions.
-- [ ] T024 [US2] In `src/monero_income/orchestration/run.py`, catch `ExportWriteError` around `write_export_file` and raise `RunError(f"cannot write export {settings.reports_path.absolute() / EXPORT_FILE_NAME}: {error}. Recorded transactions and prices were kept; the previous export was not changed.")` from it (FR-008, contracts/cli.md).
+- [X] T024 [US2] In `src/monero_income/orchestration/run.py`, catch `ExportWriteError` around `write_export_file` and raise `RunError(f"cannot write export {settings.reports_path.absolute() / EXPORT_FILE_NAME}: {error}. Recorded transactions and prices were kept; the previous export was not changed.")` from it (FR-008, contracts/cli.md).
 
 **Checkpoint**: US1 and US2 tests pass; failure and interrupt cases leave the previous export intact.
 

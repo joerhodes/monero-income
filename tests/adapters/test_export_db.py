@@ -10,6 +10,7 @@ from typing import Literal
 import pytest
 
 from monero_income.primitives.database import insert_records, open_database
+from monero_income.primitives.errors import StorageReadError
 from monero_income.primitives.export_db import export_records
 from monero_income.primitives.models import DailyPrice, ExportRecord, TransactionRecord
 from monero_income.primitives.prices_db import insert_imported, upsert_price
@@ -88,3 +89,27 @@ def test_reading_changes_nothing(conn: sqlite3.Connection) -> None:
     export_records(conn)
 
     assert conn.total_changes == before
+
+
+@pytest.mark.parametrize("text", ["abc", "", "NaN", "Infinity", "0", "-1.5"])
+def test_invalid_stored_price_is_a_read_error(conn: sqlite3.Connection, text: str) -> None:
+    # The tool never writes these; the schema stores any text, so plant one directly.
+    insert_records(conn, [tx("a", D1)])
+    conn.execute(
+        "INSERT INTO daily_prices (date_utc, usd_price, status, source, fetched_at)"
+        " VALUES (?, ?, 'final', 'api', ?)",
+        (D1.isoformat(), text, FETCHED),
+    )
+    conn.commit()
+
+    with pytest.raises(StorageReadError) as excinfo:
+        export_records(conn)
+
+    assert str(excinfo.value) == f"invalid stored price {text!r}"
+
+
+def test_database_error_is_a_read_error(conn: sqlite3.Connection) -> None:
+    conn.close()
+
+    with pytest.raises(StorageReadError, match="closed database"):
+        export_records(conn)
