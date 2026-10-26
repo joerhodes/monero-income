@@ -43,7 +43,7 @@ on its own.
 
 **Purpose**: Confirm the starting point
 
-- [ ] T001 On branch `003-transaction-csv-export`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. No new dependencies are needed (plan.md).
+- [X] T001 On branch `003-transaction-csv-export`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. No new dependencies are needed (plan.md).
 
 ---
 
@@ -53,10 +53,10 @@ on its own.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Add two errors to `src/monero_income/primitives/errors.py` (data-model.md):
+- [X] T002 [P] Add two errors to `src/monero_income/primitives/errors.py` (data-model.md):
   - `ExportWriteError(Exception)`, docstring "The export file couldn't be written; the previous export was left unchanged." Its message is the OS reason only (for example `Permission denied`); it never includes file contents.
   - `ExportLockUnsupportedError(ExportWriteError)`, docstring "The reports directory's filesystem doesn't support file locking." Its `__init__` takes no arguments and sets the fixed message `the filesystem doesn't support file locking (some network shares don't); write the export to a local directory and copy it` (FR-027, contracts/cli.md).
-- [ ] T003 [P] Add the frozen dataclass `ExportRecord` to `src/monero_income/primitives/models.py`, docstring "One recorded transaction with its UTC day's price, as read for the export." Fields, in order:
+- [X] T003 [P] Add the frozen dataclass `ExportRecord` to `src/monero_income/primitives/models.py`, docstring "One recorded transaction with its UTC day's price, as read for the export." Fields, in order:
   - `txid: str`
   - `height: int`
   - `amount_piconero: int`
@@ -65,7 +65,7 @@ on its own.
   - `price_status: Literal["provisional", "final"] | None`
 
   `usd_price` and `price_status` are "both set or both `None`" (data-model.md).
-- [ ] T004 Add the `reports_path` setting to `src/monero_income/orchestration/settings.py` (contracts/config.md):
+- [X] T004 Add the `reports_path` setting to `src/monero_income/orchestration/settings.py` (contracts/config.md):
   - `DEFAULT_REPORTS_PATH = "~/reports"`.
   - Add `"reports_path"` to `STRING_KEYS`.
   - Add `reports_path: str | None = None` to `CliOptions` and `reports_path: Path = Path("~/reports")` to `Settings`. The field default is a placeholder; `resolve_settings` always sets it.
@@ -75,7 +75,7 @@ on its own.
     3. Then `reports_path = picked if picked is not None else DEFAULT_REPORTS_PATH`, and set `Settings.reports_path=Path(reports_path).expanduser()`.
 
   A non-string value in the file is already rejected by `_file_string` with `invalid reports_path in <config path>: expected a string` (FR-022). Use the same message shapes as `db_path`, but don't copy its `or DEFAULT_DB_PATH` pattern; leave `db_path`'s code unchanged (out of scope).
-- [ ] T005 Add unit tests for T004 to `tests/unit/test_settings.py`:
+- [X] T005 Add unit tests for T004 to `tests/unit/test_settings.py`:
   - the default resolves to `<HOME>/reports`;
   - the file value is used;
   - the option overrides the file;
@@ -83,7 +83,7 @@ on its own.
   - `""` and `"  "` from the option or the file → `invalid reports_path: must not be empty`;
   - `reports_path = 5` in the file → `invalid reports_path in <path>: expected a string`;
   - `reports_path` in the file produces no unknown-key warning.
-- [ ] T006 Add the frozen dataclass `ExportSummary(path: Path, transactions: int)` to a new `src/monero_income/orchestration/export.py`. Add `exported: ExportSummary | None = None` as the last field of `RunResult` in `src/monero_income/orchestration/run.py`. Re-export `ExportSummary` from `src/monero_income/orchestration/__init__.py` and add it to `__all__` (contracts/run-api.md). Existing constructions of `RunResult` must keep compiling unchanged.
+- [X] T006 Add the frozen dataclass `ExportSummary(path: Path, transactions: int)` to a new `src/monero_income/orchestration/export.py`. Add `exported: ExportSummary | None = None` as the last field of `RunResult` in `src/monero_income/orchestration/run.py`. Re-export `ExportSummary` from `src/monero_income/orchestration/__init__.py` and add it to `__all__` (contracts/run-api.md). Existing constructions of `RunResult` must keep compiling unchanged.
 
 **Checkpoint**: All existing tests still pass; `uv run mypy` and `uv run lint-imports` are clean.
 

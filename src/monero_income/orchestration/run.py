@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from monero_income.orchestration.errors import RunError
+from monero_income.orchestration.export import ExportSummary
 from monero_income.orchestration.price_import import ImportSummary, import_prices
 from monero_income.orchestration.pricing import PricingSummary, price_days
 from monero_income.orchestration.settings import (
@@ -50,6 +51,7 @@ class RunResult:
     recorded: int
     imported: ImportSummary | None = None  # None when --import-prices wasn't given
     pricing: PricingSummary = field(default_factory=PricingSummary)
+    exported: ExportSummary | None = None  # set by every successful run()
 
 
 def make_wallet(settings: Settings) -> WalletRpc:

@@ -88,3 +88,17 @@ class ImportFileError(Exception):
         super().__init__(f"line {line}: {reason}" if line is not None else reason)
         self.line = line
         self.reason = reason
+
+
+class ExportWriteError(Exception):
+    """The export file couldn't be written; the previous export was left unchanged."""
+
+
+class ExportLockUnsupportedError(ExportWriteError):
+    """The reports directory's filesystem doesn't support file locking."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "the filesystem doesn't support file locking (some network shares don't);"
+            " write the export to a local directory and copy it"
+        )
