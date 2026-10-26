@@ -100,7 +100,7 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
 
 ### Tests for User Story 1 ⚠️ (write first, confirm they fail)
 
-- [ ] T007 [P] [US1] Create `tests/unit/test_export_format.py` for the pure functions in T013, using the contracts/export-csv.md example values:
+- [X] T007 [P] [US1] Create `tests/unit/test_export_format.py` for the pure functions in T013, using the contracts/export-csv.md example values:
   - **`format_xmr`**:
     - `1234567890123 → "1.234567890123"`;
     - `2_000_000_000_000 → "2.000000000000"`;
@@ -126,7 +126,7 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
     - each row is a 7-tuple in `HEADER` order;
     - an unpriced record gives `("TBD", "TBD", "TBD")` in the last three columns.
   - **No exponent or separator**: over all the above outputs, no value matches `[eE]` (outside the txid) or contains `,`.
-- [ ] T008 [P] [US1] Create `tests/adapters/test_export_db.py` for `export_records`. Use a database from `open_database(tmp_path / "x.db")`, filled with `insert_records` and `upsert_price`/`insert_imported`. Cases:
+- [X] T008 [P] [US1] Create `tests/adapters/test_export_db.py` for `export_records`. Use a database from `open_database(tmp_path / "x.db")`, filled with `insert_records` and `upsert_price`/`insert_imported`. Cases:
   - a transaction on a final-priced day gets that `Decimal` and `"final"`;
   - one on a provisional day gets `"provisional"`;
   - one on an unpriced day gets `None, None`;
@@ -134,13 +134,13 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
   - a price stored as `"150"` reads back as `Decimal("150")`, and `"163.40000000000001"` exactly;
   - an empty database gives `[]`;
   - the database is unchanged afterwards (`total_changes` is 0).
-- [ ] T009 [P] [US1] Create `tests/adapters/test_export_file.py` with the US1 cases for `write_export` (T015):
+- [X] T009 [P] [US1] Create `tests/adapters/test_export_file.py` with the US1 cases for `write_export` (T015):
   - it writes the header and rows as LF-terminated, unquoted CSV, with a final `\n`;
   - it returns the absolute final path;
   - it creates a missing directory, including parents (FR-005);
   - a second call replaces the first file in full, with no old rows left (FR-006);
   - an empty row list writes the header only.
-- [ ] T010 [P] [US1] Create `tests/integration/test_export.py`. Reuse the `at()`/`price_run` pattern from `tests/integration/test_pricing.py` with `FakeWalletRpc`, `FakePriceSource`, and `FakeClock`. Cases:
+- [X] T010 [P] [US1] Create `tests/integration/test_export.py`. Reuse the `at()`/`price_run` pattern from `tests/integration/test_pricing.py` with `FakeWalletRpc`, `FakePriceSource`, and `FakeClock`. Cases:
   - **Independent test**: the scenario above; the file is at `<HOME>/reports/xmr_income.csv` and `result.exported == ExportSummary(path=<that absolute path>, transactions=3)`.
   - US1-5: a provisional day's rows show `provisional` and a value from that price.
   - US1-7: a price source that fails (`PriceUnavailableError`) still produces an export with `TBD` rows, and the run succeeds.
@@ -150,13 +150,13 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
   - FR-020: the export reflects prices recorded in the same run.
   - SC-008: two runs with nothing new produce byte-identical files.
   - FR-024: the transactions and prices tables are identical before and after the export step (compare with `tests/integration/helpers.table` and a `SELECT * FROM daily_prices`).
-- [ ] T011 [P] [US1] Create golden files and `tests/integration/test_export_golden.py` (research R8, contracts/export-csv.md):
+- [X] T011 [P] [US1] Create golden files and `tests/integration/test_export_golden.py` (research R8, contracts/export-csv.md):
   - **Data**: build a synthetic database with `open_database`, `insert_records`, `upsert_price`, and `insert_imported`. Use txids from `hashlib.sha256(seed).hexdigest()` and fixed timestamps.
   - **Coverage**: final, provisional, and unpriced days; a half-cent value; a price stored as `150`; a long-precision price; a 1-piconero amount; a value over 100,000 USD; two transactions in the same second; and a later block with an earlier timestamp.
   - **Run**: call `run()` with an empty `FakeWalletRpc`, a `FakePriceSource` that answers `NoPrice` for everything (so the provisional price is kept and the unpriced day stays `TBD`), and a `FakeClock` inside the history period.
   - **Assert**: the file's bytes equal `tests/golden/xmr_income.csv`. A second test with an empty database compares against `tests/golden/xmr_income_empty.csv`.
   - **Golden file contents**: write them by hand from the contract rules, not by copying the implementation's output, and check each value against contracts/export-csv.md.
-- [ ] T012 [P] [US1] Add CLI tests to `tests/cli/test_cli_success.py`. Extend `FakeRun` with an optional `exported: ExportSummary | None`. Cases:
+- [X] T012 [P] [US1] Add CLI tests to `tests/cli/test_cli_success.py`. Extend `FakeRun` with an optional `exported: ExportSummary | None`. Cases:
   - `exported=ExportSummary(Path("/x/reports/xmr_income.csv"), 1)` prints `Exported 1 transaction to /x/reports/xmr_income.csv.` as the last stdout line;
   - `0` and `1234` print `Exported 0 transactions …` and `Exported 1234 transactions …`, with no separators;
   - the line comes after every pricing line;
@@ -164,7 +164,7 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
 
 ### Implementation for User Story 1
 
-- [ ] T013 [P] [US1] Create `src/monero_income/orchestration/export_format.py` (pure, no I/O; data-model.md and research R4):
+- [X] T013 [P] [US1] Create `src/monero_income/orchestration/export_format.py` (pure, no I/O; data-model.md and research R4):
   - `HEADER = ("txid", "height", "timestamp_utc", "xmr", "usd_price", "price_status", "usd_value")`.
   - `TBD = "TBD"`.
   - `format_timestamp(occurred_at: int) -> str`: `datetime.fromtimestamp(occurred_at, UTC).strftime("%Y-%m-%dT%H:%M:%SZ")`.
@@ -173,29 +173,29 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
   - `round_cents(value: Decimal) -> Decimal`: `quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)` inside `localcontext()`, with `prec` at least the value's digit count plus 3. Do **not** trap `Inexact` here; rounding is the point.
   - `format_usd_value(amount_piconero: int, price: Decimal | None) -> str`: `format(round_cents(usd_value(amount_piconero, price)), "f")` or `TBD`. Reuse `usd_value` from `orchestration/valuation.py`.
   - `export_rows(records: Sequence[ExportRecord]) -> list[tuple[str, str, str, str, str, str, str]]`: sort by `(occurred_at, height, txid)` (FR-010), then build each row in `HEADER` order. `price_status` is the stored status or `TBD`.
-- [ ] T014 [P] [US1] Create `src/monero_income/primitives/export_db.py` with `export_records(conn: sqlite3.Connection) -> list[ExportRecord]`. Run the read-only `LEFT JOIN` query from data-model.md (no `ORDER BY`; ordering is T013's job) and convert `usd_price` text with `Decimal(text)`. Raise `StorageReadError(str(error))` on `sqlite3.Error`, and also when a stored price isn't a finite positive `Decimal` (`decimal.InvalidOperation`, or ≤ 0). Module docstring: only reads, never writes (FR-024).
-- [ ] T015 [P] [US1] Create `src/monero_income/primitives/export_file.py` with `write_export(directory: Path, name: str, header: Sequence[str], rows: Iterable[Sequence[str]]) -> Path`, US1 version (research R1, R2, R5):
+- [X] T014 [P] [US1] Create `src/monero_income/primitives/export_db.py` with `export_records(conn: sqlite3.Connection) -> list[ExportRecord]`. Run the read-only `LEFT JOIN` query from data-model.md (no `ORDER BY`; ordering is T013's job) and convert `usd_price` text with `Decimal(text)`. Raise `StorageReadError(str(error))` on `sqlite3.Error`, and also when a stored price isn't a finite positive `Decimal` (`decimal.InvalidOperation`, or ≤ 0). Module docstring: only reads, never writes (FR-024).
+- [X] T015 [P] [US1] Create `src/monero_income/primitives/export_file.py` with `write_export(directory: Path, name: str, header: Sequence[str], rows: Iterable[Sequence[str]]) -> Path`, US1 version (research R1, R2, R5):
   1. `directory = directory.absolute()`; `directory.mkdir(parents=True, exist_ok=True)`.
   2. `fd, tmp = tempfile.mkstemp(dir=directory, prefix=f".{name}.", suffix=".tmp")`, which gives mode `0o600`.
   3. Open with `os.fdopen(fd, "w", encoding="utf-8", newline="")`. Write with `csv.writer(file, lineterminator="\n")`: the header, then the rows. Then `flush()` and `os.fsync()`.
   4. `os.replace(tmp, directory / name)`; return `directory / name`.
 
   T023 adds locking, cleanup, and error translation.
-- [ ] T016 [US1] Complete `src/monero_income/orchestration/export.py` (contracts/run-api.md):
+- [X] T016 [US1] Complete `src/monero_income/orchestration/export.py` (contracts/run-api.md):
   - `EXPORT_FILE_NAME = "xmr_income.csv"`.
   - `read_export_rows(conn) -> list[tuple[str, ...]]` returns `export_rows(export_records(conn))`.
   - `write_export_file(directory: Path, rows: Sequence[Sequence[str]]) -> ExportSummary` calls `write_export(directory, EXPORT_FILE_NAME, HEADER, rows)` and returns `ExportSummary(path=<returned path>, transactions=len(rows))`.
 
   Reading and writing stay separate so `run()` can close the database between them (research R6).
-- [ ] T017 [US1] Wire the export into `run()` in `src/monero_income/orchestration/run.py`:
+- [X] T017 [US1] Wire the export into `run()` in `src/monero_income/orchestration/run.py`:
   - Inside the `try` that holds the connection, after `price_days` and its `finally: _close(source)`, call `rows = read_export_rows(conn)`.
   - After `conn.close()`, call `exported = write_export_file(settings.reports_path, rows)`. This call goes outside the connection's `finally`, but still inside the outer `try` whose `except (StorageError, WalletError)` maps errors through `_run_error`.
   - Return `RunResult(..., exported=exported)`.
   - Update the `run()` docstring order to "sync, import (if asked), price, then export".
 
   Any earlier exception must prevent the write (FR-002).
-- [ ] T018 [US1] Print the export line in `src/monero_income/cli.py` `_summary_lines`: when `result.exported is not None`, append `f"Exported {n} {_plural(n, 'transaction')} to {result.exported.path}."` last (contracts/cli.md).
-- [ ] T019 [US1] Run the full test suite. Fix any existing test broken by runs now writing `<HOME>/reports/xmr_income.csv`, for example a test that lists `tmp_path` contents, by adjusting the test's expectations, not by disabling the export.
+- [X] T018 [US1] Print the export line in `src/monero_income/cli.py` `_summary_lines`: when `result.exported is not None`, append `f"Exported {n} {_plural(n, 'transaction')} to {result.exported.path}."` last (contracts/cli.md).
+- [X] T019 [US1] Run the full test suite. Fix any existing test broken by runs now writing `<HOME>/reports/xmr_income.csv`, for example a test that lists `tmp_path` contents, by adjusting the test's expectations, not by disabling the export.
 
 **Checkpoint**: US1 tests and the golden files pass; a normal run writes the export and prints the line.
 

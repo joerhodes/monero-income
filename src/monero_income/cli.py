@@ -80,7 +80,7 @@ def main_command(
 
 
 def _summary_lines(result: RunResult) -> list[str]:
-    """The run's stdout lines (contracts/cli.md for features 001 and 002)."""
+    """The run's stdout lines (contracts/cli.md for features 001, 002 and 003)."""
     if result.recorded == 0:
         lines = ["No new transactions found."]
     else:
@@ -116,6 +116,9 @@ def _summary_lines(result: RunResult) -> list[str]:
         )
     if pricing.all_final:
         lines.append("All transactions are valued.")
+    if result.exported is not None:
+        count = result.exported.transactions
+        lines.append(f"Exported {count} {_plural(count, 'transaction')} to {result.exported.path}.")
     return lines
 
 

@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from monero_income import cli
 from monero_income.orchestration import (
     CliOptions,
+    ExportSummary,
     ImportSummary,
     PricingSummary,
     Reporter,
@@ -24,15 +25,22 @@ class FakeRun:
         recorded: int,
         pricing: PricingSummary | None = None,
         imported: ImportSummary | None = None,
+        exported: ExportSummary | None = None,
     ) -> None:
         self.recorded = recorded
         self.pricing = pricing or PricingSummary()
         self.imported = imported
+        self.exported = exported
         self.options: list[CliOptions] = []
 
     def __call__(self, options: CliOptions, reporter: Reporter) -> RunResult:
         self.options.append(options)
-        return RunResult(recorded=self.recorded, imported=self.imported, pricing=self.pricing)
+        return RunResult(
+            recorded=self.recorded,
+            imported=self.imported,
+            pricing=self.pricing,
+            exported=self.exported,
+        )
 
 
 @pytest.mark.parametrize(
@@ -267,3 +275,48 @@ def test_import_line_comes_before_the_pricing_lines(
     result = runner.invoke(cli.app, [])
 
     assert result.stdout.splitlines() == ["Recorded 1 new transaction.", line, "Priced 2 days."]
+
+
+# --- feature 003: the export line -----------------------------------------------------------
+
+EXPORT_PATH = Path("/x/reports/xmr_income.csv")
+
+
+@pytest.mark.parametrize(
+    ("transactions", "line"),
+    [
+        (1, "Exported 1 transaction to /x/reports/xmr_income.csv.\n"),
+        (0, "Exported 0 transactions to /x/reports/xmr_income.csv.\n"),
+        (1234, "Exported 1234 transactions to /x/reports/xmr_income.csv.\n"),
+    ],
+)
+def test_export_line_is_last(monkeypatch: pytest.MonkeyPatch, transactions: int, line: str) -> None:
+    exported = ExportSummary(EXPORT_PATH, transactions)
+    monkeypatch.setattr(cli, "run", FakeRun(1, exported=exported))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert result.stdout == "Recorded 1 new transaction.\n" + line
+
+
+def test_export_line_comes_after_every_pricing_line(monkeypatch: pytest.MonkeyPatch) -> None:
+    pricing = PricingSummary(priced=2, provisional=1, no_price=1, not_refreshed=1, too_old=1)
+    exported = ExportSummary(EXPORT_PATH, 5)
+    monkeypatch.setattr(
+        cli, "run", FakeRun(2, pricing, ImportSummary(imported=1, skipped=0), exported)
+    )
+
+    result = runner.invoke(cli.app, [])
+
+    lines = result.stdout.splitlines()
+    assert len(lines) == 7
+    assert lines[-1] == "Exported 5 transactions to /x/reports/xmr_income.csv."
+
+
+def test_no_export_line_without_an_export(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(1, exported=None))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout == "Recorded 1 new transaction.\n"

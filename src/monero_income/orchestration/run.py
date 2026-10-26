@@ -9,7 +9,11 @@ from pathlib import Path
 from typing import Protocol
 
 from monero_income.orchestration.errors import RunError
-from monero_income.orchestration.export import ExportSummary
+from monero_income.orchestration.export import (
+    ExportSummary,
+    read_export_rows,
+    write_export_file,
+)
 from monero_income.orchestration.price_import import ImportSummary, import_prices
 from monero_income.orchestration.pricing import PricingSummary, price_days
 from monero_income.orchestration.settings import (
@@ -79,7 +83,7 @@ def run(
     clock: Callable[[], datetime] | None = None,
     sleep: Callable[[float], None] | None = None,
 ) -> RunResult:
-    """Run once: resolve settings, open the database, sync, import (if asked), then price.
+    """Run once: resolve settings, open the database, sync, import (if asked), price, then export.
 
     ``config_path`` defaults to ``~/.config/monero-income/config.toml``, expanded
     at call time; so are the price source, clock, and sleep defaults. Every
@@ -128,11 +132,14 @@ def run(
                 )
             finally:
                 _close(source)
+            rows = read_export_rows(conn)
         finally:
             conn.close()
+        # Written only once every earlier step succeeded (FR-002).
+        exported = write_export_file(settings.reports_path, rows)
     except (StorageError, WalletError) as error:
         raise _run_error(error, settings) from error
-    return RunResult(recorded=recorded, imported=imported, pricing=pricing)
+    return RunResult(recorded=recorded, imported=imported, pricing=pricing, exported=exported)
 
 
 def _close(resource: object) -> None:
