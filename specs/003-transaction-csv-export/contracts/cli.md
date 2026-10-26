@@ -39,7 +39,12 @@ Error: cannot write export <absolute path>: <reason>. Recorded transactions and 
 ```
 
 `<reason>` is the operating system's message (for example `Permission denied`,
-`No space left on device`, `Not a directory`). The feature 001/002 lines for the sync and
+`No space left on device`, `Not a directory`). When the reports directory's filesystem
+doesn't support file locking (FR-027), `<reason>` is exactly:
+
+```text
+the filesystem doesn't support file locking (some network shares don't); write the export to a local directory and copy it
+``` The feature 001/002 lines for the sync and
 pricing are **not** printed in this case, matching every other failure.
 
 Ctrl-C during the write exits **130** with feature 001's

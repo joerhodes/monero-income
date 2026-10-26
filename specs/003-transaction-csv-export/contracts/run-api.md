@@ -23,10 +23,10 @@ class RunResult:
 
 The `run()` signature is unchanged; no new seams are needed:
 
-- **Output directory in tests**: the `HOME` fixture redirects the default `~/reports`, and
+- **Reports directory in tests**: the `HOME` fixture redirects the default `~/reports`, and
   tests can pass `CliOptions(reports_path=...)` to choose another directory.
 - **Write failures**: tested at the primitive level with row iterables that raise partway,
-  and at the `run()` level with an output path that is a file or an unwritable directory.
+  and at the `run()` level with a reports path that is a file or an unwritable directory.
 
 ## Order
 

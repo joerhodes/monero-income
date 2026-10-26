@@ -10,7 +10,7 @@ reports_path = "~/reports"   # string, default shown; ~ expanded
 
 | Key | Type | Default | CLI override | Validation |
 |-----|------|---------|--------------|------------|
-| `reports_path` | string | `~/reports` | `--reports-path` | Not a string in the file → `invalid reports_path in <config path>: expected a string`. Empty or blank (after precedence) → `invalid reports_path: must not be empty`. Both exit 1 before syncing (FR-022) |
+| `reports_path` | string | `~/reports` | `--reports-path` | Not a string in the file → `invalid reports_path in <config path>: expected a string`. Empty or blank from the option or the file (checked before the default applies, so `""` is an error, not the default) → `invalid reports_path: must not be empty`. Both exit 1 before syncing (FR-022) |
 
 - **Path handling**: `~` is expanded when settings are resolved. A relative path is relative
   to the current directory. The run's output line shows the absolute path.

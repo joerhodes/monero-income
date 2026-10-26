@@ -45,14 +45,14 @@ A `finally` block covers exceptions and Ctrl-C, but not `SIGKILL` or a power los
 leave a hidden `.xmr_income.csv.*.tmp` file. FR-007 requires that a later successful run not
 leave such files behind.
 
-**Decision**: While writing, the run holds an exclusive `fcntl.flock` on the **output directory**
+**Decision**: While writing, the run holds an exclusive `fcntl.flock` on the **reports directory**
 itself (opened `O_RDONLY`). Holding the lock, it first deletes any `.xmr_income.csv.*.tmp`
 files, then writes and replaces. The lock is released when the descriptor is closed, including
 when the process dies.
 
 **Rationale**: Under the lock no other run can be mid-write, so every matching temporary file
 is from a dead run and safe to delete. Locking the directory, not a lock file, leaves nothing
-extra in the output directory. A second concurrent run waits for the first (writing takes well
+extra in the reports directory. A second concurrent run waits for the first (writing takes well
 under a second for any realistic wallet), then writes its own complete export; the file left is
 complete and from one run (edge case "two runs at the same time"). `flock` on a directory
 descriptor works on Linux and macOS, the target platforms.
@@ -63,6 +63,14 @@ descriptor works on Linux and macOS, the target platforms.
 - *A `.lock` file*: an extra file left in the user's reports directory.
 - *A fixed temporary name opened with `O_EXCL`*: a crash leaves the name taken, so every later
   run fails until it's removed by hand.
+
+**Filesystems without locking** (spec FR-027, decided after `/speckit-analyze` finding U1):
+some network filesystems reject `flock` with `ENOLCK`, `ENOTSUP` or `EOPNOTSUPP`. The write
+then fails with `ExportLockUnsupportedError`, a subclass of `ExportWriteError`. Its message
+says the filesystem doesn't support file locking and suggests writing locally and copying. Any
+other `OSError` from `flock` is an ordinary `ExportWriteError`. Continuing without the lock was
+rejected: stale-file cleanup would then be unsafe against a concurrent run, and FR-007 could
+no longer be guaranteed. The reader documentation states the limitation.
 
 ## R4. Formatting each column exactly
 
@@ -152,7 +160,7 @@ rounding rule with a worked example, and a note on spreadsheets trimming decimal
 **Rationale**: A separate file can be handed to an auditor with the export, without the rest
 of the README. It lives under `docs/` beside, not inside, `docs/sdd-log/`.
 
-## R10. Output directory setting
+## R10. Reports directory setting
 
 **Decision**:
 - **Setting**: a new string config key, `reports_path`, and a new option, `--reports-path`.

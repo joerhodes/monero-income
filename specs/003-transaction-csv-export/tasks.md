@@ -53,7 +53,9 @@ on its own.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Add `ExportWriteError(Exception)` to `src/monero_income/primitives/errors.py`, docstring "The export file couldn't be written; the previous export was left unchanged." Its message is the OS reason only (for example `Permission denied`); it never includes file contents (data-model.md).
+- [ ] T002 [P] Add two errors to `src/monero_income/primitives/errors.py` (data-model.md):
+  - `ExportWriteError(Exception)`, docstring "The export file couldn't be written; the previous export was left unchanged." Its message is the OS reason only (for example `Permission denied`); it never includes file contents.
+  - `ExportLockUnsupportedError(ExportWriteError)`, docstring "The reports directory's filesystem doesn't support file locking." Its `__init__` takes no arguments and sets the fixed message `the filesystem doesn't support file locking (some network shares don't); write the export to a local directory and copy it` (FR-027, contracts/cli.md).
 - [ ] T003 [P] Add the frozen dataclass `ExportRecord` to `src/monero_income/primitives/models.py`, docstring "One recorded transaction with its UTC day's price, as read for the export." Fields, in order:
   - `txid: str`
   - `height: int`
@@ -67,9 +69,12 @@ on its own.
   - `DEFAULT_REPORTS_PATH = "~/reports"`.
   - Add `"reports_path"` to `STRING_KEYS`.
   - Add `reports_path: str | None = None` to `CliOptions` and `reports_path: Path = Path("~/reports")` to `Settings`. The field default is a placeholder; `resolve_settings` always sets it.
-  - In `resolve_settings`: `reports_path = _pick(options.reports_path, file_values["reports_path"]) or DEFAULT_REPORTS_PATH`. Blank after stripping raises `RunError("invalid reports_path: must not be empty")`; set `Settings.reports_path=Path(reports_path).expanduser()`.
+  - In `resolve_settings`:
+    1. `picked = _pick(options.reports_path, file_values["reports_path"])`.
+    2. If `picked is not None and not picked.strip()`, raise `RunError("invalid reports_path: must not be empty")`. Check this **before** applying the default, so `""` is an error and not silently the default (FR-022, `/speckit-analyze` I1).
+    3. Then `reports_path = picked if picked is not None else DEFAULT_REPORTS_PATH`, and set `Settings.reports_path=Path(reports_path).expanduser()`.
 
-  A non-string value in the file is already rejected by `_file_string` with `invalid reports_path in <config path>: expected a string` (FR-022). Mirror the `db_path` code and messages exactly.
+  A non-string value in the file is already rejected by `_file_string` with `invalid reports_path in <config path>: expected a string` (FR-022). Use the same message shapes as `db_path`, but don't copy its `or DEFAULT_DB_PATH` pattern; leave `db_path`'s code unchanged (out of scope).
 - [ ] T005 Add unit tests for T004 to `tests/unit/test_settings.py`:
   - the default resolves to `<HOME>/reports`;
   - the file value is used;
@@ -184,7 +189,7 @@ the price, `final`, and the rounded value; the unpriced row shows `TBD` three ti
   Reading and writing stay separate so `run()` can close the database between them (research R6).
 - [ ] T017 [US1] Wire the export into `run()` in `src/monero_income/orchestration/run.py`:
   - Inside the `try` that holds the connection, after `price_days` and its `finally: _close(source)`, call `rows = read_export_rows(conn)`.
-  - After `conn.close()` (outside the connection's `finally`, still inside the `except (StorageError, WalletError)` block, so a read error maps through `_run_error`), call `exported = write_export_file(settings.reports_path, rows)`.
+  - After `conn.close()`, call `exported = write_export_file(settings.reports_path, rows)`. This call goes outside the connection's `finally`, but still inside the outer `try` whose `except (StorageError, WalletError)` maps errors through `_run_error`.
   - Return `RunResult(..., exported=exported)`.
   - Update the `run()` docstring order to "sync, import (if asked), price, then export".
 
@@ -214,7 +219,8 @@ error message.
   - **Stale temporary file**: plant `.xmr_income.csv.abc123.tmp` with junk bytes. After a successful write it is gone, and the directory holds only `xmr_income.csv` (US2-5, FR-007). An unrelated file in the directory, such as `notes.txt`, is left alone.
   - **Permissions**: the new file has `stat.S_IMODE(mode) == 0o600`, including when the previous export was `chmod 0o644` (US2-7, FR-026). During the write the temporary file is `0o600`: check it from inside the rows iterable by globbing the directory.
   - **Lock**: while a test holds `fcntl.flock(dir_fd, LOCK_EX | LOCK_NB)` on the directory, a `write_export` in a thread blocks, then completes once the lock is released. Use a short timeout and `threading.Event`, with no real sleeps beyond the join timeout.
-  - **Directory problems**: the output path is an existing regular file → `ExportWriteError` (`Not a directory` / `File exists`). A directory with mode `0o500` → `ExportWriteError` (`Permission denied`); skip this case when running as root (`os.geteuid() == 0`).
+  - **Directory problems**: the reports path is an existing regular file → `ExportWriteError` (`Not a directory` / `File exists`). A directory with mode `0o500` → `ExportWriteError` (`Permission denied`); skip this case when running as root (`os.geteuid() == 0`).
+  - **Locking unsupported** (FR-027, US3-7): monkeypatch `monero_income.primitives.export_file.fcntl.flock` to raise `OSError(code, os.strerror(code))`, parametrized over `errno.ENOLCK`, `errno.ENOTSUP`, and `errno.EOPNOTSUPP`. Each case gives `ExportLockUnsupportedError` with exactly the message in contracts/cli.md. A pre-written export is byte-for-byte unchanged, and no temporary file is created. A different `flock` error, such as `errno.EBADF`, gives a plain `ExportWriteError`, not the subclass.
 - [ ] T021 [P] [US2] Create `tests/integration/test_export_failures.py`:
   - After a good run, a second `run()` with `CliOptions(reports_path=<path of a regular file>)` raises `RunError`, with the exact message `cannot write export <abs path>/xmr_income.csv: <reason>. Recorded transactions and prices were kept; the previous export was not changed.`, matched with a regex on `<reason>`. The transactions recorded by that run are in the database (US2-6, FR-008).
   - A run with `monero_income.orchestration.export.write_export` monkeypatched to raise `KeyboardInterrupt` propagates `KeyboardInterrupt`, the previous export is unchanged, and the run's recorded transactions are kept.
@@ -229,7 +235,8 @@ error message.
   2. Under the lock, delete every `directory.glob(f".{name}.*.tmp")` entry (`missing_ok=True`).
   3. Write the temporary file as in T015, inside `try`. On **any** `BaseException`, unlink the temporary file (`missing_ok=True`) and re-raise.
   4. After `os.replace`, call `os.fsync(dir_fd)`.
-  5. Translate `OSError` from any step (mkdir, open, flock, write, fsync, replace) into `ExportWriteError(error.strerror or type(error).__name__)`, raised `from error`. Never translate `KeyboardInterrupt` or other non-`OSError` exceptions.
+  5. If `flock` raises `OSError` with `errno` in `{errno.ENOLCK, errno.ENOTSUP, errno.EOPNOTSUPP}`, raise `ExportLockUnsupportedError()` from it, before any temporary file is created (FR-027, research R3).
+  6. Translate any other `OSError` from any step (mkdir, open, flock, write, fsync, replace) into `ExportWriteError(error.strerror or type(error).__name__)`, raised `from error`. Never translate `KeyboardInterrupt` or other non-`OSError` exceptions.
 - [ ] T024 [US2] In `src/monero_income/orchestration/run.py`, catch `ExportWriteError` around `write_export_file` and raise `RunError(f"cannot write export {settings.reports_path.absolute() / EXPORT_FILE_NAME}: {error}. Recorded transactions and prices were kept; the previous export was not changed.")` from it (FR-008, contracts/cli.md).
 
 **Checkpoint**: US1 and US2 tests pass; failure and interrupt cases leave the previous export intact.
@@ -252,7 +259,8 @@ error message.
   - **US3-4**: a nested missing directory (`<tmp>/a/b/c`) is created.
   - **`~` expansion**: `reports_path = "~/elsewhere"` writes under `<HOME>/elsewhere`.
   - **Relative path**: `"rel"` resolves against the current directory (use `monkeypatch.chdir(tmp_path)`), and `ExportSummary.path` is absolute.
-  - **US3-6**: `reports_path = 5` raises `RunError` before the wallet is contacted, and the fake wallet's call log is empty.
+  - **US3-6**: `reports_path = 5`, `reports_path = ""` in the file, and `CliOptions(reports_path="")` each raise `RunError` before the wallet is contacted, and the fake wallet's call log is empty.
+  - **US3-7**: with `fcntl.flock` in `monero_income.primitives.export_file` monkeypatched to raise `OSError(errno.ENOLCK, …)`, `run()` raises `RunError` with the message `cannot write export <abs path>: the filesystem doesn't support file locking (some network shares don't); write the export to a local directory and copy it. Recorded transactions and prices were kept; the previous export was not changed.`
 - [ ] T026 [P] [US3] Add to `tests/cli/test_cli_success.py`: `--reports-path /x/y` maps onto `CliOptions(reports_path="/x/y")`, extending `test_options_map_onto_cli_options`, and omitting it gives `None`.
 
 ### Implementation for User Story 3
@@ -282,14 +290,16 @@ every column and recompute any `usd_value`.
   - that `usd_value` is the only rounded column, and that all other values are exact;
   - that no value uses scientific notation or thousands separators;
   - a note that spreadsheets may display fewer decimals than the file holds, so check against the file's text;
+  - a "Where the export can be written" note: the reports directory must be on a filesystem that supports file locking. Some network shares don't; there the run fails with a message saying so. To share the export, write it to a local directory and copy it (FR-027);
   - the six-row example from the contract, with placeholder txids.
 - [ ] T029 [P] [US4] Update the Usage section of `README.md`:
   - **Configure**: add `reports_path = "~/reports"` to the config example.
   - **Run**: add `[--reports-path DIR]` to the usage block after `--db-path`, and the `Exported N transactions to …` line as the last line of the output example.
   - Add a short "The export" subsection: the file `xmr_income.csv`, owner-only permissions, replaced each run, and a link to `docs/export-csv.md`.
   - Replace the sentence "CSV output and summaries come in later features." with "Summaries come in a later feature."
+  - In "The export" subsection, note that the reports directory must support file locking; for a network share that doesn't, write locally and copy (FR-027).
 
-  Don't change the Intro, Status, or "How I used AI" sections.
+  Don't change the Intro, Status, or "How I used AI" sections. The Status table already lists 003 as the transaction export.
 - [ ] T030 [US4] Cross-check `docs/export-csv.md` against `tests/golden/xmr_income.csv`: every value form in the golden file (`TBD`, a provisional row, a half-cent row, `150`, a long price, `0.00`) is explained in the document, and the document's example rows obey the contract.
 
 **Checkpoint**: The documentation stands alone (SC-007).
@@ -301,7 +311,7 @@ every column and recompute any `usd_value`.
 - [ ] T031 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers the new modules (`orchestration/export.py` and `orchestration/export_format.py` match its glob), and that the new error and output text says "transaction(s)" (FR-025).
 - [ ] T032 [P] Add a property-style test to `tests/unit/test_export_format.py` (SC-002, SC-003, FR-019). For a few hundred generated records (seeded `random.Random`, integer piconero up to 10¹⁸, prices built as `Decimal(f"{int}.{int}")`), parse each row back:
   - `int(xmr.replace(".", "")) == amount_piconero`;
-  - `Decimal(usd_price) == price`;
+  - `Decimal(usd_price) == price`, **and** the text itself: `usd_price == format(price, "f")`, since `Decimal` equality ignores trailing zeros (`/speckit-analyze` U2);
   - `timestamp_utc` → Unix seconds equals `occurred_at`;
   - `abs(Decimal(usd_value) - usd_value(amount, price)) <= Decimal("0.005")`.
 

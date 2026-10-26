@@ -90,8 +90,14 @@ Each takes plain values and returns plain values, with no I/O (constitution IV).
 | `primitives/export_db.py` | `export_records(conn) -> list[ExportRecord]` | I/O (read) | Runs the query above; `sqlite3.Error` → `StorageReadError` |
 | `primitives/export_file.py` | `write_export(directory, name, header, rows) -> Path` | I/O (write) | Creates the directory; locks it; removes stale temporaries; writes a `0o600` temporary file, `fsync`s it, `os.replace`s it, `fsync`s the directory; returns the final path. `OSError` → `ExportWriteError`; any other exception removes the temporary file and propagates |
 
-New error: `ExportWriteError(Exception)` in `primitives/errors.py`. Its message is the OS
-reason (`strerror`); it never includes file contents.
+New errors in `primitives/errors.py`:
+
+- `ExportWriteError(Exception)`: its message is the OS reason (`strerror`); it never includes
+  file contents.
+- `ExportLockUnsupportedError(ExportWriteError)`: raised when `flock` fails with `ENOLCK`,
+  `ENOTSUP` or `EOPNOTSUPP`. Its message is fixed: `the filesystem doesn't support file
+  locking (some network shares don't); write the export to a local directory and copy it`
+  (FR-027, research R3).
 
 ## State: export file per run
 
@@ -99,6 +105,6 @@ reason (`strerror`); it never includes file contents.
 |-------------|-------------------|
 | Invalid settings, sync failure, storage error, invalid import file | Unchanged (previous, or absent) |
 | Sync and pricing complete, write succeeds | Replaced by the complete new export, mode `0o600` |
-| Sync and pricing complete, write fails (`ExportWriteError`) | Unchanged; run exits 1 |
+| Sync and pricing complete, write fails (`ExportWriteError`, including `ExportLockUnsupportedError`) | Unchanged; run exits 1 |
 | Interrupted (Ctrl-C) during the write | Unchanged; temporary file removed; run exits 130 |
 | Killed (`SIGKILL`, power loss) during the write | Unchanged; temporary file may remain until the next write removes it |

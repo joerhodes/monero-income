@@ -34,7 +34,8 @@
 - The file name, header row, column formats, `reports_path` key, and `--reports-path` option
   are user-facing contract (the export is report output), not implementation details.
 - Defaults chosen without asking, recorded in Assumptions: row order by timestamp (then
-  height, then txid); `usd_value` rounded half up; missing output directory created; header-only
+  height, then txid); `usd_value` rounded half up; missing reports directory created; header-only
   file when no transactions; a run-output line reporting the export; write failure ends the
   run with a failure status. Any of these can be revisited in `/speckit-clarify`.
-- Line endings and byte-level CSV details are deferred to planning, then locked by golden files.
+- Line endings and byte-level CSV details are set in contracts/export-csv.md (decided in
+  planning) and locked by golden files.

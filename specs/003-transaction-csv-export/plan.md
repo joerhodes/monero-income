@@ -40,7 +40,7 @@ mypy `--strict`, import-linter, pytest with a 90% coverage floor)
 - Pure formatting and sorting: unit tests.
 - `write_export`: tested against `tmp_path`, with row iterables that raise `OSError` or
   `KeyboardInterrupt` partway, a planted stale temporary file, a pre-existing `0o644` export,
-  and an output path that's a file.
+  and a reports path that's a file.
 - `run()`: integration tests with the fake wallet and price source. The autouse `HOME`
   fixture keeps `~/reports` inside `tmp_path`.
 - Golden files for a synthetic database and for an empty one.

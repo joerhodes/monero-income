@@ -48,13 +48,17 @@ has never seen the tool."
   after the pricing lines with the transaction count and the file's full path, for example
   `Exported 1234 transactions to /Users/you/reports/xmr_income.csv.` (plain count, as in
   features 001 and 002's lines; singular "transaction" for 1).
+- Q: What happens when the reports directory is on a filesystem that doesn't support file
+  locking (some network shares)? → A: The export fails like any other write failure, with a
+  message saying the filesystem doesn't support locking and suggesting writing the export
+  locally and copying it. (Decided after `/speckit-analyze` finding U1.)
 
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Export every recorded transaction after each run (Priority: P1)
 
 A miner runs the tool as usual. After the sync records any new transactions and the pricing
-step values them (feature 002), the run writes `xmr_income.csv` to the output directory. The
+step values them (feature 002), the run writes `xmr_income.csv` to the reports directory. The
 file has a header row and one row per recorded transaction, oldest first, giving the
 transaction's id, block height, UTC timestamp, exact XMR amount, its day's USD price and
 price status, and its USD value rounded to the cent. Days that have no price yet show `TBD`.
@@ -65,7 +69,7 @@ their valuations exist only inside the tool's local database, which neither an a
 spreadsheet can read.
 
 **Independent Test**: With three recorded transactions on two UTC days, one day priced
-(final) and the other unpriced, run the tool. The output directory contains `xmr_income.csv`
+(final) and the other unpriced, run the tool. The reports directory contains `xmr_income.csv`
 with a header row and three data rows in time order; the priced rows show the price,
 `final`, and the rounded USD value; the unpriced row shows `TBD` in `usd_price`,
 `price_status`, and `usd_value`.
@@ -73,7 +77,7 @@ with a header row and three data rows in time order; the priced rows show the pr
 **Acceptance Scenarios**:
 
 1. **Given** recorded transactions, **When** a run completes its sync and pricing, **Then**
-   `xmr_income.csv` in the output directory has a header row followed by exactly one row per
+   `xmr_income.csv` in the reports directory has a header row followed by exactly one row per
    recorded transaction, oldest first.
 2. **Given** the export is written, **When** the user reads the header, **Then** it is
    exactly `txid,height,timestamp_utc,xmr,usd_price,price_status,usd_value`.
@@ -115,7 +119,7 @@ worse than none, because it could be mistaken for a complete record.
 
 **Independent Test**: Write an export, then run the tool so that writing the new export
 fails partway. The file at `xmr_income.csv` is byte-for-byte the previous export, no
-partially written file is left in the output directory, and the run ends with an error
+partially written file is left in the reports directory, and the run ends with an error
 message and a failure status.
 
 **Acceptance Scenarios**:
@@ -130,7 +134,7 @@ message and a failure status.
 4. **Given** no previous export, **When** writing the first export fails or is interrupted,
    **Then** no `xmr_income.csv` exists afterwards.
 5. **Given** an interrupted or failed write, **When** the next run completes successfully,
-   **Then** the output directory holds only the complete new export (no leftover partial
+   **Then** the reports directory holds only the complete new export (no leftover partial
    files from the earlier attempt).
 6. **Given** writing the export fails, **When** the run ends, **Then** the transactions and
    prices recorded by that run are kept.
@@ -141,12 +145,13 @@ message and a failure status.
 
 ### User Story 3 - Choose where the export is written (Priority: P2)
 
-By default the export goes to `~/reports`. The user can set a different output directory in
+By default the export goes to `~/reports`. The user can set a different reports directory in
 the configuration file with the key `reports_path`, or for a single run with a command-line
 option. If the directory doesn't exist yet, the tool creates it.
 
-**Why this priority**: The default works for most users, but an auditor's shared folder or a
-backed-up location is often where the file needs to go.
+**Why this priority**: The default works for most users, but a backed-up or synced local
+folder is often where the file needs to go. To share the export from a network share that
+doesn't support file locking, the user writes it locally and copies it there.
 
 **Independent Test**: Run the tool three times: with no setting (export in `~/reports`), with
 `reports_path` set in the config file (export there), and with both the config key and the
@@ -160,15 +165,20 @@ command-line option set (export in the option's directory).
    it is written to that directory.
 3. **Given** both the config key and the command-line option, **When** the export is
    written, **Then** the option's directory is used.
-4. **Given** the output directory doesn't exist, **When** the export is written, **Then** the
+4. **Given** the reports directory doesn't exist, **When** the export is written, **Then** the
    directory (and any missing parent directories) is created and the export is written in it.
-5. **Given** the output directory path names an existing file, or a directory that can't be
+5. **Given** the reports directory path names an existing file, or a directory that can't be
    created or written to, **When** the run tries to write the export, **Then** it shows an
    error naming the path and the problem and ends with a failure status, without changing
    any existing export.
-6. **Given** a `reports_path` value that isn't a text value, **When** the run starts,
-   **Then** it shows an error naming the key and ends with a failure status before syncing,
-   as with other invalid configuration (feature 001).
+6. **Given** a `reports_path` value that isn't a text value, or is empty, **When** the run
+   starts, **Then** it shows an error naming the key and ends with a failure status before
+   syncing, as with other invalid configuration (feature 001).
+7. **Given** a reports directory on a filesystem that doesn't support file locking (some
+   network shares), **When** the run tries to write the export, **Then** it shows an error
+   saying the filesystem doesn't support file locking and suggesting writing the export
+   locally and copying it, and ends with a failure status, without changing any existing
+   export.
 
 ---
 
@@ -222,7 +232,7 @@ and recompute `usd_value` from `xmr` and `usd_price`.
   price is recorded yet, whatever the reason.
 - **Run where pricing made no lookups** (every day already final, or nothing to price): the
   export is still written.
-- **Output directory doesn't exist**: created, including missing parents.
+- **Reports directory doesn't exist**: created, including missing parents.
 - **Output path is a file, or not writable**: the run fails with an error naming the path;
   any existing export is unchanged.
 - **Disk full or other write failure mid-write**: the run fails with an error; the previous
@@ -232,6 +242,9 @@ and recompute `usd_value` from `xmr` and `usd_price`.
 - **Two runs at the same time**: each writes a complete export; the file left behind is
   complete and comes from one of them, never a mix (feature 001's concurrency rules still
   apply to the database).
+- **Reports directory on a filesystem without file locking** (some network shares): the run
+  fails with a message saying so (FR-027); any existing export there is unchanged. Write the
+  export locally and copy it to the share.
 - **Run fails before the export step** (invalid configuration, sync failure, storage error
   during pricing, invalid import file): no export is written; the existing export, if any, is
   unchanged.
@@ -250,12 +263,12 @@ and recompute `usd_value` from `xmr` and `usd_price`.
 - **FR-002**: When the sync fails, or the run fails with an error at any point before the
   export is written (feature 001 FR-015, feature 002 FR-020 and FR-025), the run MUST NOT
   write an export, and any existing export MUST be left unchanged.
-- **FR-003**: The export MUST be a single CSV file named `xmr_income.csv` in the output
+- **FR-003**: The export MUST be a single CSV file named `xmr_income.csv` in the reports
   directory.
-- **FR-004**: The output directory MUST be, in order of precedence: the command-line option
+- **FR-004**: The reports directory MUST be, in order of precedence: the command-line option
   `--reports-path`, then the configuration key `reports_path`, then the default `~/reports`.
   A leading `~` MUST be expanded to the user's home directory, as with `db_path`.
-- **FR-005**: If the output directory doesn't exist, the run MUST create it, including any
+- **FR-005**: If the reports directory doesn't exist, the run MUST create it, including any
   missing parent directories.
 - **FR-006**: Each run's export MUST replace the previous export in full.
 - **FR-007**: Replacing the export MUST be all-or-nothing: at every moment, including after an
@@ -263,7 +276,7 @@ and recompute `usd_value` from `xmr` and `usd_price`.
   (or absent, if there was none) or the complete new export. A failed or interrupted write
   MUST NOT leave a partial file at `xmr_income.csv`, and a later successful run MUST NOT
   leave behind partial files from an earlier attempt.
-- **FR-008**: If the export can't be written (the output directory can't be created or
+- **FR-008**: If the export can't be written (the reports directory can't be created or
   written to, or the write fails), the run MUST show an error naming the path and the problem
   and end with a failure status, even though the sync and pricing succeeded. Transactions and
   prices recorded earlier in the run MUST be kept, and the previous export MUST stay intact
@@ -287,8 +300,8 @@ and recompute `usd_value` from `xmr` and `usd_price`.
 - **FR-017**: `usd_value` MUST be the exact product of the transaction's XMR amount and its
   day's USD price, rounded to the nearest cent, half up, and written with exactly 2 decimal
   places; or `TBD` if the day has no recorded price.
-- **FR-018**: No value in the export MUST be written in scientific notation or with
-  thousands separators.
+- **FR-018**: Values MUST NOT be written in scientific notation or with thousands
+  separators.
 - **FR-019**: Except for `usd_value`, every value MUST be exact, so that the recorded
   transactions (id, height, moment, amount) and the recorded daily prices (date, price,
   status) for every day with a transaction can be rebuilt from the export without loss.
@@ -313,16 +326,21 @@ and recompute `usd_value` from `xmr` and `usd_price`.
 - **FR-026**: Every time the export is written, it MUST be readable and writable by its owner
   only, with no access for other users, whatever permissions the previous export had. A
   partially written file MUST NOT be readable by other users at any point either.
+- **FR-027**: If the reports directory's filesystem doesn't support file locking, the export
+  MUST fail as in FR-008, with an error that names the path, says the filesystem doesn't
+  support file locking (for example, some network shares), and suggests writing the export
+  to a local directory and copying it. The reader documentation (FR-023) MUST describe this
+  limitation.
 
 ### Key Entities
 
-- **Transaction export**: The file `xmr_income.csv` in the output directory. A complete
+- **Transaction export**: The file `xmr_income.csv` in the reports directory. A complete
   snapshot, written at the end of each successful run, of every recorded transaction with its
   valuation. Replaced in full by each run; never partially written.
 - **Export row**: One recorded transaction (feature 001) joined with its UTC day's price
   (feature 002), if any. Fields: transaction id, block height, UTC timestamp, exact XMR
   amount, USD price, price status, and USD value rounded to the cent.
-- **Output directory**: Where the export is written. Set by command-line option, then the
+- **Reports directory**: Where the export is written. Set by command-line option, then the
   `reports_path` configuration key, then the default `~/reports`. Later report features are
   expected to write to the same directory.
 
@@ -361,8 +379,9 @@ and recompute `usd_value` from `xmr` and `usd_price`.
 - **One status for unpriced days**: `TBD` covers both temporarily unpriced days and days
   older than the price history; the run's own messages (feature 002) already distinguish them.
 - **File format**: comma-separated, UTF-8 text, with no quoting needed (no value contains a
-  comma, quote, or line break). Line endings and other byte-level details are decided during
-  planning and then locked by golden-file tests.
+  comma, quote, or line break). Line endings and other byte-level details are set in
+  [contracts/export-csv.md](contracts/export-csv.md) (LF line endings, no byte-order mark)
+  and locked by golden-file tests.
 - **Golden files**: the export is report output under the constitution, so its format is
   locked by golden-file tests created in this feature.
 - **Documentation location**: the column documentation lives with the project's user
@@ -370,7 +389,7 @@ and recompute `usd_value` from `xmr` and `usd_price`.
   The CSV file itself contains no comments or notes, so it stays a plain table.
 - **Run output**: feature 001 and 002's lines are unchanged; the export line (FR-021) is the
   only addition to a successful run's output.
-- **Missing output directory**: created automatically, since the default `~/reports` won't
+- **Missing reports directory**: created automatically, since the default `~/reports` won't
   exist on a first run.
 - **Out of scope**: monthly or weekly summaries, on-screen reports, other file formats,
   filtering or date ranges, choosing a different file name, and restoring from the export.
