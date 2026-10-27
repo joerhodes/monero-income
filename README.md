@@ -24,7 +24,7 @@ stay provisional until the day settles.
 |---|---|---|
 | [001 wallet sync](specs/001-sync-incoming-transactions/) | Done | Records incoming transactions in SQLite; safe to re-run and resume |
 | [002 USD valuation](specs/002-usd-valuation/) | Done | Daily CoinGecko prices, provisional/final pricing, CSV import for old days |
-| [003 Transaction export](specs/003-transaction-csv-export) | In Progress | Transaction CSV export |
+| [003 Transaction export](specs/003-transaction-csv-export) Done | Transaction CSV export |
 | [004 …] | Planned | Weekly and monthly income tables |
 
 ## Where to look
