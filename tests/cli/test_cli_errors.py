@@ -57,3 +57,17 @@ def test_warning_is_printed_and_the_run_continues(monkeypatch: pytest.MonkeyPatc
     assert result.stderr == "Warning: config file is readable by other users\n"
     assert result.stdout == "Recorded 2 new transactions.\n"
     assert "Traceback" not in result.output
+
+
+def test_export_write_failure_prints_only_the_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    message = (
+        "cannot write export /x/reports/xmr_income.csv: Permission denied."
+        " Recorded transactions and prices were kept; the previous export was not changed."
+    )
+    monkeypatch.setattr(cli, "run", raising(RunError(message)))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 1
+    assert result.stderr == f"Error: {message}\n"
+    assert result.stdout == ""  # no sync or pricing lines on failure

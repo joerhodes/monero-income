@@ -17,6 +17,7 @@ from monero_income.primitives.config_file import RawConfig
 
 DEFAULT_RPC_URL = "http://127.0.0.1:18088/json_rpc"
 DEFAULT_DB_PATH = "~/.local/share/monero-income/xmr.db"
+DEFAULT_REPORTS_PATH = "~/reports"
 DEFAULT_COINGECKO_URL = "https://api.coingecko.com/api/v3"
 DEFAULT_COINGECKO_PRO_URL = "https://pro-api.coingecko.com/api/v3"
 DEFAULT_COIN_ID = "monero"
@@ -32,6 +33,7 @@ STRING_KEYS = (
     "coin_id",
     "coingecko_api_key",
     "coingecko_api_key_type",
+    "reports_path",
 )
 NUMBER_KEYS = ("min_request_delay",)
 KNOWN_KEYS = STRING_KEYS + NUMBER_KEYS
@@ -51,6 +53,7 @@ class CliOptions:
     import_prices: str | None = None
     coingecko_api_key: str | None = None
     coingecko_api_key_type: str | None = None
+    reports_path: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,6 +68,7 @@ class Settings:
     api_key_type: KeyType | None = None
     min_request_delay: Decimal | None = None  # seconds; None means the default for the key
     import_prices: Path | None = None
+    reports_path: Path = Path(DEFAULT_REPORTS_PATH)  # placeholder; resolve_settings sets it
 
 
 def default_config_path() -> Path:
@@ -108,6 +112,12 @@ def resolve_settings(
     if not db_path.strip():
         raise RunError("invalid db_path: must not be empty")
 
+    # Check for empty before applying the default, so "" is an error and not the default.
+    picked_reports_path = _pick(options.reports_path, file_values["reports_path"])
+    if picked_reports_path is not None and not picked_reports_path.strip():
+        raise RunError("invalid reports_path: must not be empty")
+    reports_path = picked_reports_path if picked_reports_path is not None else DEFAULT_REPORTS_PATH
+
     api_key = _pick(options.coingecko_api_key, file_values["coingecko_api_key"])
     key_type_text = _pick(options.coingecko_api_key_type, file_values["coingecko_api_key_type"])
     api_key_type: KeyType | None = None
@@ -147,6 +157,7 @@ def resolve_settings(
         api_key_type=api_key_type,
         min_request_delay=_request_delay(values, config_path),
         import_prices=import_prices,
+        reports_path=Path(reports_path).expanduser(),
     )
     return settings, warnings
 

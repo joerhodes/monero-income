@@ -55,3 +55,18 @@ class ImportRow:
     line: int
     date_utc: date
     usd_price: Decimal
+
+
+@dataclass(frozen=True)
+class ExportRecord:
+    """One recorded transaction with its UTC day's price, as read for the export.
+
+    ``usd_price`` and ``price_status`` are both set or both ``None``.
+    """
+
+    txid: str
+    height: int
+    amount_piconero: int
+    occurred_at: int  # UTC Unix seconds
+    usd_price: Decimal | None  # None when the day has no recorded price
+    price_status: Literal["provisional", "final"] | None

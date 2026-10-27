@@ -24,8 +24,8 @@ stay provisional until the day settles.
 |---|---|---|
 | [001 wallet sync](specs/001-sync-incoming-transactions/) | Done | Records incoming transactions in SQLite; safe to re-run and resume |
 | [002 USD valuation](specs/002-usd-valuation/) | Done | Daily CoinGecko prices, provisional/final pricing, CSV import for old days |
-| 003 [reports] | Next | Weekly and monthly income tables |
-| [004 …] | Planned | [CSV output, default row limits on tables] |
+| [003 Transaction export](specs/003-transaction-csv-export) | In Progress | Transaction CSV export |
+| [004 …] | Planned | Weekly and monthly income tables |
 
 ## Where to look
 
@@ -80,7 +80,8 @@ project would make new features and bug fixes go much more smoothly.
 
 Every run records the wallet's incoming transactions in a local SQLite
 database (feature 001), then values them in USD using daily prices from
-CoinGecko (feature 002). CSV output and summaries come in later features.
+CoinGecko (feature 002), and writes them all to a CSV export (feature 003).
+Summaries come in a later feature.
 
 ### Install
 
@@ -103,6 +104,7 @@ rpc_url  = "http://127.0.0.1:18088/json_rpc"    # default shown
 username = "monero"                              # if the wallet RPC uses --rpc-login
 password = "secret"                              # config file only; never on the command line
 db_path  = "~/.local/share/monero-income/xmr.db" # default shown
+reports_path = "~/reports"                       # default shown; where the export is written
 
 # USD prices (CoinGecko). A key is optional; a free Demo key allows faster pricing.
 coingecko_api_key      = "CG-..."   # optional
@@ -131,7 +133,7 @@ with a key, 6 seconds without. `min_request_delay` overrides both.
 ### Run
 
 ```sh
-monero-income [--rpc-url URL] [--username NAME] [--db-path PATH]
+monero-income [--rpc-url URL] [--username NAME] [--db-path PATH] [--reports-path DIR]
               [--import-prices CSV]
               [--coingecko-api-key KEY] [--coingecko-api-key-type demo|pro]
 ```
@@ -140,7 +142,8 @@ Every run starts with a sync, which records new incoming transactions from
 account 0 of the wallet. It then looks up the USD price for each UTC day that
 has transactions but no final price, oldest day first. Each transaction is
 valued at its day's price, exactly; rounding happens only on output. The run
-prints the sync line and then whichever pricing lines apply:
+prints the sync line, then whichever pricing lines apply, and last the export
+line:
 
 ```text
 Recorded 3 new transactions.
@@ -149,11 +152,28 @@ Priced 4 days (1 provisional).
 1 provisional price couldn't be refreshed; a later run will try again.
 3 days are older than the price history and can't be looked up; use --import-prices to add them.
 All transactions are valued.
+Exported 42 transactions to /Users/you/reports/xmr_income.csv.
 ```
 
 Running it again is safe: only new transactions are added, and recorded ones
 are never changed. If a run is interrupted, the next run picks up where it
 left off.
+
+#### The export
+
+Every successful run writes `xmr_income.csv` to the reports directory
+(`~/reports` unless `--reports-path` or `reports_path` says otherwise),
+creating the directory if needed. The file lists every recorded transaction
+with its day's USD price, price status, and USD value. It is replaced in full
+on each run, never left half-written, and readable only by its owner. A run
+that fails leaves the previous export unchanged. See
+[docs/export-csv.md](docs/export-csv.md) for every column, the rounding rule,
+and an example; that page is written so it can be handed to an accountant
+along with the file.
+
+The reports directory must be on a filesystem that supports file locking.
+Some network shares don't, and the run fails there with a message saying so;
+write the export to a local directory and copy it to the share.
 
 #### Provisional and final prices
 

@@ -37,6 +37,7 @@ def test_defaults_apply_without_options_or_file(isolated_home: Path) -> None:
         username=None,
         password=None,
         db_path=isolated_home / ".local/share/monero-income/xmr.db",
+        reports_path=isolated_home / "reports",
     )
     assert warnings == []
 
@@ -117,7 +118,7 @@ def test_unknown_key_is_a_warning_naming_it() -> None:
     assert "price_api" in warnings[0]
 
 
-@pytest.mark.parametrize("key", ["rpc_url", "username", "password", "db_path"])
+@pytest.mark.parametrize("key", ["rpc_url", "username", "password", "db_path", "reports_path"])
 def test_known_key_with_wrong_type_is_invalid(key: str) -> None:
     with pytest.raises(RunError, match=f"invalid {key}"):
         resolve(file=raw(**{key: 18088}))
@@ -273,3 +274,39 @@ def test_api_key_never_appears_in_repr_warnings_or_errors() -> None:
     with pytest.raises(RunError) as excinfo:
         resolve_settings(CliOptions(rpc_url="nope"), file, CONFIG)
     assert API_KEY not in str(excinfo.value)
+
+
+def test_reports_path_defaults_to_reports_in_home(isolated_home: Path) -> None:
+    assert resolve().reports_path == isolated_home / "reports"
+
+
+def test_reports_path_from_the_file_with_home_expanded(isolated_home: Path) -> None:
+    assert resolve(file=raw(reports_path="/srv/reports")).reports_path == Path("/srv/reports")
+    assert resolve(file=raw(reports_path="~/audit")).reports_path == isolated_home / "audit"
+
+
+def test_reports_path_option_overrides_the_file(isolated_home: Path) -> None:
+    settings = resolve(CliOptions(reports_path="~/cli"), raw(reports_path="/srv/reports"))
+
+    assert settings.reports_path == isolated_home / "cli"
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_empty_reports_path_is_invalid_not_the_default(value: str) -> None:
+    for options, file in ((CliOptions(reports_path=value), None), (None, raw(reports_path=value))):
+        with pytest.raises(RunError) as excinfo:
+            resolve(options, file)
+        assert str(excinfo.value) == "invalid reports_path: must not be empty"
+
+
+def test_reports_path_with_wrong_type_names_the_config_file() -> None:
+    with pytest.raises(RunError) as excinfo:
+        resolve(file=raw(reports_path=5))
+
+    assert str(excinfo.value) == f"invalid reports_path in {CONFIG}: expected a string"
+
+
+def test_reports_path_is_a_known_key() -> None:
+    _, warnings = resolve_settings(CliOptions(), raw(reports_path="/srv/reports"), CONFIG)
+
+    assert warnings == []

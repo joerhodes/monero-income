@@ -35,6 +35,12 @@ def main_command(
         ),
     ] = None,
     db_path: Annotated[str | None, typer.Option("--db-path", help="SQLite database file.")] = None,
+    reports_path: Annotated[
+        str | None,
+        typer.Option(
+            "--reports-path", help="Directory for the xmr_income.csv export (default ~/reports)."
+        ),
+    ] = None,
     import_prices: Annotated[
         str | None,
         typer.Option(
@@ -59,6 +65,7 @@ def main_command(
         rpc_url=rpc_url,
         username=username,
         db_path=db_path,
+        reports_path=reports_path,
         import_prices=import_prices,
         coingecko_api_key=coingecko_api_key,
         coingecko_api_key_type=coingecko_api_key_type,
@@ -80,7 +87,7 @@ def main_command(
 
 
 def _summary_lines(result: RunResult) -> list[str]:
-    """The run's stdout lines (contracts/cli.md for features 001 and 002)."""
+    """The run's stdout lines (contracts/cli.md for features 001, 002 and 003)."""
     if result.recorded == 0:
         lines = ["No new transactions found."]
     else:
@@ -116,6 +123,9 @@ def _summary_lines(result: RunResult) -> list[str]:
         )
     if pricing.all_final:
         lines.append("All transactions are valued.")
+    if result.exported is not None:
+        count = result.exported.transactions
+        lines.append(f"Exported {count} {_plural(count, 'transaction')} to {result.exported.path}.")
     return lines
 
 
