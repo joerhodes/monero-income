@@ -31,6 +31,15 @@ recorded transactions, a single message replaces the summaries."
 
 - Q: How are USD values written on screen? → A: With a dollar sign before the amount, for
   example `$1,234,567.90`.
+- Q: Should the summary time zone also be settable with a command-line option, or only in
+  the configuration file? → A: Both: a configuration file setting and a command-line option;
+  the option wins, then the file, then the machine's local time zone (as with
+  `--reports-path`).
+- Q: Should XMR figures in the summaries use thousand separators like USD? → A: Yes, for
+  example `1,234.500000000000`; the 12 decimal places are not grouped.
+- Q: If the run writes the export but then can't read the recorded data for the summaries,
+  should it still print the sync, pricing, and export lines before the error? → A: Yes: it
+  prints those lines, then the error, and ends with a failure status.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -170,8 +179,8 @@ and every figure is the same in all three runs.
 ### User Story 4 - Use a time zone other than the machine's (Priority: P3)
 
 By default, periods follow the machine's local time zone. The user can set another time zone
-in the configuration file, for example when the machine runs in UTC but the user's income is
-counted in their home time zone.
+in the configuration file, or for a single run with a command-line option, for example when
+the machine runs in UTC but the user's income is counted in their home time zone.
 
 **Why this priority**: Most users run the tool on their own machine, already set to their
 time zone. The setting matters for servers and for users who keep accounts in a different
@@ -179,7 +188,9 @@ zone.
 
 **Independent Test**: With a transaction at 2026-11-01T03:30:00Z, run the tool on a machine
 set to UTC, first with no time zone setting (the transaction counts in 2026-11), then with the
-time zone set to America/New_York (it counts in 2026-10).
+time zone set to America/New_York in the configuration file (it counts in 2026-10), then with
+the file's setting still there and the command-line option set to UTC (it counts in
+2026-11).
 
 **Acceptance Scenarios**:
 
@@ -187,9 +198,12 @@ time zone set to America/New_York (it counts in 2026-10).
    the machine's local time zone.
 2. **Given** a time zone set in the configuration file, **When** the summaries are shown,
    **Then** periods, and the current period, follow that time zone.
-3. **Given** a time zone setting that isn't a text value, is empty, or isn't a known time zone
-   name, **When** the run starts, **Then** it shows an error naming the setting and ends with
-   a failure status before syncing, as with other invalid configuration (feature 001).
+3. **Given** a time zone set both in the configuration file and with the command-line option,
+   **When** the summaries are shown, **Then** the option's time zone is used.
+4. **Given** a time zone setting, in the file or the option, that isn't a text value, is empty,
+   or isn't a known time zone name, **When** the run starts, **Then** it shows an error naming
+   the setting and ends with a failure status before syncing, as with other invalid
+   configuration (feature 001).
 
 ---
 
@@ -220,8 +234,8 @@ time zone set to America/New_York (it counts in 2026-10).
   `$0.13` (all values are positive, so this is the same as feature 003's half up).
 - **Totals versus rows**: the total is the exact sum rounded once, so it can differ by a cent
   or so from adding the rounded rows by hand.
-- **Large values**: USD uses thousand separators (`$1,234,567.90`); XMR shows exactly 12
-  decimal places.
+- **Large values**: USD and XMR both use thousand separators in the whole part
+  (`$1,234,567.90`, `1,234.500000000000`); XMR shows exactly 12 decimal places, ungrouped.
 - **Provisional price later finalized**: the next run's summaries use the final price and drop
   the provisional mark for periods with no other provisional price.
 - **Day older than the price history with no imported price**: its transactions are unpriced
@@ -231,7 +245,8 @@ time zone set to America/New_York (it counts in 2026-10).
 - **Run fails before the summaries** (invalid configuration, sync failure, storage error
   during pricing, export write failure): no summary is shown, as no export line is shown.
 - **Recorded data can't be read for the summaries** (after the export was written): the run
-  shows an error and ends with a failure status; the export already written stays.
+  prints the sync, pricing, and export lines, then an error, and ends with a failure status;
+  the export already written stays.
 
 ## Requirements *(mandatory)*
 
@@ -249,17 +264,19 @@ time zone set to America/New_York (it counts in 2026-10).
   one containing the run's current moment in that time zone.
 - **FR-004**: Each transaction MUST be counted in the period containing its recorded moment
   converted to the summary time zone.
-- **FR-005**: The summary time zone MUST be the time zone set in the configuration file if
-  there is one, otherwise the machine's local time zone.
-- **FR-006**: An invalid time zone setting (not a text value, empty, or not a known time zone
-  name) MUST be reported as an error naming the setting, and the run MUST end with a failure
-  status before syncing, as for other invalid configuration (feature 001).
+- **FR-005**: The summary time zone MUST be, in order of precedence: the command-line option,
+  then the configuration file setting, then the machine's local time zone.
+- **FR-006**: An invalid time zone setting, from the option or the file (not a text value,
+  empty, or not a known time zone name), MUST be reported as an error naming the setting, and
+  the run MUST end with a failure status before syncing, as for other invalid configuration
+  (feature 001).
 - **FR-007**: Each summary MUST list every period in its range, oldest first, including
   periods with no transactions, which MUST show zero XMR and zero USD.
 - **FR-008**: Each summary MUST have the columns Period, XMR, and USD, in that order, with a
   title naming the summary (weekly, monthly, or annual).
 - **FR-009**: A period's XMR MUST be the exact sum of the amounts of all its transactions,
-  priced or not, shown with exactly 12 decimal places.
+  priced or not, shown with exactly 12 decimal places and thousand separators in the whole
+  part (for example, `1,234.500000000000`).
 - **FR-010**: A period's USD MUST be the exact sum of the USD values (amount times its UTC
   day's recorded price, feature 002) of its priced transactions, rounded once to the nearest
   cent, half a cent away from zero, and shown with a leading dollar sign, exactly 2 decimal
@@ -283,8 +300,9 @@ time zone set to America/New_York (it counts in 2026-10).
 - **FR-017**: Displaying the summaries MUST NOT change any recorded transaction or price, or
   the export.
 - **FR-018**: If the recorded transactions and prices can't be read for the summaries, the run
-  MUST show an error and end with a failure status; the export already written MUST be left
-  as it is.
+  MUST still print feature 001, 002, and 003's lines, including the export line, then show an
+  error and end with a failure status; no summary is shown, and the export already written
+  MUST be left as it is.
 - **FR-019**: The summaries MUST reflect the recorded transactions and prices as they stand at
   the end of the run's pricing (and import, if any), the same data as the run's export.
 - **FR-020**: Feature 001, 002, and 003's output lines MUST be unchanged; the summaries (or the
@@ -300,9 +318,10 @@ time zone set to America/New_York (it counts in 2026-10).
   whether it leaves out an unpriced transaction.
 - **Summary**: The weekly (26 periods), monthly (12), or annual (4) table ending with the
   current period, oldest first, with a total row over its periods.
-- **Summary time zone**: The configured time zone, or the machine's local time zone if none is
-  configured. Decides each transaction's period and which period is current. It doesn't
-  change which day's price a transaction is valued at; that remains its UTC day (feature 002).
+- **Summary time zone**: Set by command-line option, then the configuration file, then the
+  machine's local time zone. Decides each transaction's period and which period is current. It
+  doesn't change which day's price a transaction is valued at; that remains its UTC day
+  (feature 002).
 
 ## Success Criteria *(mandatory)*
 
@@ -326,15 +345,16 @@ time zone set to America/New_York (it counts in 2026-10).
 
 ## Assumptions
 
-- **Time zone setting**: no time zone setting exists yet, so this feature adds one to the
-  configuration file only, as an IANA time zone name (for example, `America/New_York`). There
-  is no command-line option: the setting rarely changes. Planning names the key.
+- **Time zone setting**: no time zone setting exists yet, so this feature adds a configuration
+  file setting and a command-line option, both taking an IANA time zone name (for example,
+  `America/New_York`). Planning names the key and the option.
 - **Marks and legend wording**: the exact mark characters and legend text are set in planning
   and locked by golden-file tests. The marks are plain ASCII so they show in any terminal and
   in redirected output.
-- **Number format**: USD starts with `$` and uses `,` as the thousand separator and `.` as
-  the decimal point, whatever the machine's locale. XMR has no thousand separators; its 12
-  decimal places are enough to read. Figures are right-aligned so the decimal points line up.
+- **Number format**: USD starts with `$` and uses `,` as the thousand separator and `.` as the
+  decimal point, whatever the machine's locale. XMR uses the same separators in its whole part,
+  and its 12 decimal places are not grouped. Figures are right-aligned so the decimal points
+  line up.
 - **Rounding**: "half a cent away from zero" equals feature 003's "half up", since every value
   is zero or positive.
 - **Which price applies**: a transaction's USD value uses its UTC day's price, as in features
