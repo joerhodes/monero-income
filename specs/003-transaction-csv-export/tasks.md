@@ -280,7 +280,7 @@ every column and recompute any `usd_value`.
 
 ### Implementation for User Story 4
 
-- [ ] T028 [P] [US4] Write `docs/export-csv.md` for a reader who has never seen the tool (research R9). Do not read or link `docs/sdd-log/`. Cover:
+- [X] T028 [P] [US4] Write `docs/export-csv.md` for a reader who has never seen the tool (research R9). Do not read or link `docs/sdd-log/`. Cover:
   - what the file is and when it's written (after each successful run; replaced in full; not written by a failed run);
   - one row per incoming transaction, oldest first by `timestamp_utc`, then block height, then txid;
   - a table of the seven columns, each with its meaning, format and units, taken from contracts/export-csv.md;
@@ -292,7 +292,7 @@ every column and recompute any `usd_value`.
   - a note that spreadsheets may display fewer decimals than the file holds, so check against the file's text;
   - a "Where the export can be written" note: the reports directory must be on a filesystem that supports file locking. Some network shares don't; there the run fails with a message saying so. To share the export, write it to a local directory and copy it (FR-027);
   - the six-row example from the contract, with placeholder txids.
-- [ ] T029 [P] [US4] Update the Usage section of `README.md`:
+- [X] T029 [P] [US4] Update the Usage section of `README.md`:
   - **Configure**: add `reports_path = "~/reports"` to the config example.
   - **Run**: add `[--reports-path DIR]` to the usage block after `--db-path`, and the `Exported N transactions to …` line as the last line of the output example.
   - Add a short "The export" subsection: the file `xmr_income.csv`, owner-only permissions, replaced each run, and a link to `docs/export-csv.md`.
@@ -300,7 +300,7 @@ every column and recompute any `usd_value`.
   - In "The export" subsection, note that the reports directory must support file locking; for a network share that doesn't, write locally and copy (FR-027).
 
   Don't change the Intro, Status, or "How I used AI" sections. The Status table already lists 003 as the transaction export.
-- [ ] T030 [US4] Cross-check `docs/export-csv.md` against `tests/golden/xmr_income.csv`: every value form in the golden file (`TBD`, a provisional row, a half-cent row, `150`, a long price, `0.00`) is explained in the document, and the document's example rows obey the contract.
+- [X] T030 [US4] Cross-check `docs/export-csv.md` against `tests/golden/xmr_income.csv`: every value form in the golden file (`TBD`, a provisional row, a half-cent row, `150`, a long price, `0.00`) is explained in the document, and the document's example rows obey the contract.
 
 **Checkpoint**: The documentation stands alone (SC-007).
 
@@ -308,15 +308,15 @@ every column and recompute any `usd_value`.
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T031 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers the new modules (`orchestration/export.py` and `orchestration/export_format.py` match its glob), and that the new error and output text says "transaction(s)" (FR-025).
-- [ ] T032 [P] Add a property-style test to `tests/unit/test_export_format.py` (SC-002, SC-003, FR-019). For a few hundred generated records (seeded `random.Random`, integer piconero up to 10¹⁸, prices built as `Decimal(f"{int}.{int}")`), parse each row back:
+- [X] T031 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers the new modules (`orchestration/export.py` and `orchestration/export_format.py` match its glob), and that the new error and output text says "transaction(s)" (FR-025).
+- [X] T032 [P] Add a property-style test to `tests/unit/test_export_format.py` (SC-002, SC-003, FR-019). For a few hundred generated records (seeded `random.Random`, integer piconero up to 10¹⁸, prices built as `Decimal(f"{int}.{int}")`), parse each row back:
   - `int(xmr.replace(".", "")) == amount_piconero`;
   - `Decimal(usd_price) == price`, **and** the text itself: `usd_price == format(price, "f")`, since `Decimal` equality ignores trailing zeros (`/speckit-analyze` U2);
   - `timestamp_utc` → Unix seconds equals `occurred_at`;
   - `abs(Decimal(usd_value) - usd_value(amount, price)) <= Decimal("0.005")`.
 
   No new dependency (don't add hypothesis).
-- [ ] T033 Run all five gates and fix failures until they pass with coverage ≥ 90%.
+- [X] T033 Run all five gates and fix failures until they pass with coverage ≥ 90%.
 - [ ] T034 Run the manual checks in `specs/003-transaction-csv-export/quickstart.md` against the real wallet and record the results in the PR description. Don't commit the export, the database, or the config file.
 
 ---

@@ -1,3 +1,4 @@
+import random
 import re
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -13,6 +14,7 @@ from monero_income.orchestration.export_format import (
     format_usd_value,
     format_xmr,
 )
+from monero_income.orchestration.valuation import usd_value
 from monero_income.primitives.models import ExportRecord
 
 TXID_A = "a" * 64
@@ -167,3 +169,32 @@ def test_no_value_has_an_exponent_or_a_separator() -> None:
     for row in export_rows(records):
         assert all("," not in value for value in row)
         assert all(not re.search("[eE]", value) for value in row[1:])
+
+
+def test_rows_parse_back_to_the_recorded_values() -> None:
+    """SC-002, SC-003, FR-019: all but usd_value are exact; usd_value is within half a cent."""
+    rng = random.Random(3)
+    records = [
+        record(
+            txid=f"{n:064x}",
+            height=rng.randrange(10**7),
+            amount=rng.randrange(1, 10**18 + 1),
+            occurred_at=rng.randrange(2**32),
+            price=Decimal(f"{rng.randrange(10**6)}.{rng.randrange(10 ** rng.randrange(1, 18))}"),
+        )
+        for n in range(300)
+    ]
+    by_txid = {r.txid: r for r in records}
+
+    rows = export_rows(records)
+
+    assert len(rows) == len(records)
+    for txid, _height, timestamp, xmr, price, _status, value in rows:
+        r = by_txid[txid]
+        assert r.usd_price is not None
+        assert int(xmr.replace(".", "")) == r.amount_piconero
+        assert Decimal(price) == r.usd_price
+        assert price == format(r.usd_price, "f")  # Decimal equality ignores trailing zeros
+        moment = datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
+        assert int(moment.timestamp()) == r.occurred_at
+        assert abs(Decimal(value) - usd_value(r.amount_piconero, r.usd_price)) <= Decimal("0.005")
