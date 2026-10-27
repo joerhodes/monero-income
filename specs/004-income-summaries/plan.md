@@ -16,9 +16,14 @@ time zone.
 - **Aggregation**: pure functions group records by their local date. XMR is summed as `int`
   piconero and USD as exact `Decimal` values of feature 002's `usd_value`. The flags record
   provisional and unpriced transactions.
-- **Rendering**: a pure renderer formats each table and picks the layout from the terminal
-  width the CLI passes it (`None` when the output isn't a terminal). Formatting covers grouped
-  XMR, `$`-grouped USD rounded once half up, and the `*`/`?` marks and their legend.
+- **Rendering**: rich, as in the original tool (research R7).
+  - Each summary is a `Table(box=box.ROUNDED, header_style="bold")`.
+  - The side-by-side layout is a rich grid, chosen from the terminal width the CLI passes
+    (`None` when the output isn't a terminal).
+  - Everything is rendered into an in-memory `Console` with an explicit width, and the CLI
+    echoes the text.
+  - Formatting covers grouped XMR, `$`-grouped USD rounded once half up, and the `*`/`?`
+    marks and their legend.
 - **Time zone**: validated in two steps. `resolve_settings` checks the type and that the value
   isn't empty. A new primitive then loads the name against the system's time zone database,
   before syncing. With no setting, conversion uses the system's local rules through
@@ -38,8 +43,10 @@ conventions; only the differences are listed here.
 **Language/Version, tooling, gates**: unchanged from feature 001 (Python 3.13+, uv, ruff,
 mypy `--strict`, import-linter, pytest with a 90% coverage floor)
 
-**New dependencies**: none (stdlib `zoneinfo`, `datetime`, `decimal`, `shutil`). The time zone
-database is the system's (`/usr/share/zoneinfo` on macOS and Linux; research R2).
+**New dependencies**: `rich>=15.0.0`, declared directly in `pyproject.toml`. It was already
+installed as Typer's dependency at 15.0.0, so `uv.lock` only records the direct dependency.
+The rest is stdlib (`zoneinfo`, `datetime`, `decimal`, `shutil`, `io`). The time zone database
+is the system's (`/usr/share/zoneinfo` on macOS and Linux; research R2).
 
 **Storage**: schema unchanged (version 2). The summaries reuse the records from feature 003's
 `export_records`, and nothing is written ([data-model.md](data-model.md)).
@@ -49,14 +56,20 @@ database is the system's (`/usr/share/zoneinfo` on macOS and Linux; research R2)
   cover ranges, ISO week years (2026-W53), local-midnight cases on both sides of a DST change,
   exact sums, flags, and records outside the range.
 - **System zone**: a fixture sets `TZ` and calls `time.tzset()`, restoring both afterwards.
-- **Rendering**: unit tests and golden files for both layouts, the unmarked case, and the
-  message. The width threshold is tested at *W* − 1 and *W*.
+- **Rendering**:
+  - unit tests and golden files for both layouts, the unmarked case, and the message;
+  - every rendering goes into a rich `Console` with an explicit width and no color system,
+    so the output is deterministic;
+  - golden comparisons strip trailing spaces per line (research R9);
+  - the width threshold is tested at *W* − 1 and *W*, and a width narrower than one table
+    still shows every figure in full.
 - **Settings and loading**: unit tests for `timezone` and `load_zone`.
 - **`run()`**: integration tests with the fake wallet, price source and clock. They check
   that `summaries` is set and agrees with the export, that an invalid time zone fails before
   syncing, and that a failed run returns no summaries.
-- **CLI**: the blank line, the placement after the export line, the `isatty`/width plumbing
-  (with a fake `RunResult`), and `--timezone` mapping onto `CliOptions`.
+- **CLI**: the blank line, the placement after the export line, the `isatty`/width/styled
+  plumbing (with a fake `RunResult`), no ANSI codes when not a terminal, and `--timezone`
+  mapping onto `CliOptions`.
 - **Summary-step failures (FR-018)**: one injected failure per stage (research R10):
   - **reading**: a `summary_reader` raising `StorageReadError("invalid stored price 'abc'")`
     or `RuntimeError`;
@@ -79,9 +92,11 @@ planning: the exact sum takes 5 ms and the date conversion 63 ms per 100,000 rec
 
 **Constraints**:
 - No `float` (constitution III).
-- ASCII only, and no trailing spaces in the output.
+- Figures, labels and marks are ASCII; the borders are rich's `box.ROUNDED`.
+- Plain text, with no ANSI codes, when the output isn't a terminal.
 - Lines no wider than the terminal in the side-by-side layout (US3-4).
-- At most 40 lines side by side (SC-006); 34 by construction (research R7).
+- rich is never given a console narrower than the layout, so no figure is truncated.
+- At most 40 lines side by side (SC-006); 36 in the contract example (research R7).
 
 **Scale/Scope**: one pass over the records per summary; memory is the record list that
 feature 003 already holds.
@@ -93,10 +108,10 @@ constitution v1.2.0.
 
 | Principle | Status | How the design complies |
 |-----------|--------|-------------------------|
-| I. Layered architecture | ✅ | `primitives/timezones.py` (loading a zone). `orchestration/summary.py` (pure aggregation) and `orchestration/summary_format.py` (pure rendering). The CLI gains `--timezone` and prints the rendered lines. The existing import-linter contracts cover the new modules. |
-| II. Thin CLI | ✅ | The CLI passes `timezone` in `CliOptions`. It measures the terminal (`isatty`, `get_terminal_size`), which is presentation, and echoes `render_summaries(...)`. Aggregation, layout and text all live in orchestration and can be tested without Typer. |
+| I. Layered architecture | ✅ | `primitives/timezones.py` (loading a zone). `orchestration/summary.py` (pure aggregation) and `orchestration/summary_format.py` (pure rendering with rich into an in-memory console). The CLI gains `--timezone` and prints the rendered text. The existing import-linter contracts cover the new modules; rich is third-party, outside the layers. |
+| II. Thin CLI | ✅ | The CLI passes `timezone` in `CliOptions`. It measures the terminal (`isatty`, `get_terminal_size`), which is presentation, and echoes the text from `summary_text(...)`. Aggregation, the rich tables, layout and text all live in orchestration and can be tested without Typer. |
 | III. Exact money | ✅ | XMR is an `int` sum of piconero, formatted by integer `divmod`. USD is the exact `Decimal` sum of feature 002's exact products, in a context that traps `Inexact`. It is rounded once, at output, with feature 003's `round_cents`. No `float` anywhere. |
-| IV. Separate I/O from transformation | ✅ | `load_zone` reads the time zone database and does nothing else. `build_summaries` and `render_summaries` take values and return values. Reading the records is feature 003's existing primitive. |
+| IV. Separate I/O from transformation | ✅ | `load_zone` reads the time zone database and does nothing else. `build_summaries` and `render_text` take values and return values; `render_text` writes only to an in-memory rich `Console`. Reading the records is feature 003's existing primitive. |
 | V. Testable without the network | ✅ | No new external service. The system zone is controlled by `TZ` in tests; pytest-socket is still on. |
 | VI. Data safety | ✅ | Nothing is written to the database or the export (FR-017). No schema change, so no migration. |
 | VII. Automated gates | ✅ | Unchanged. The 90% floor applies to the new modules. |
@@ -121,7 +136,7 @@ specs/004-income-summaries/
 │   ├── summaries.md      # the text: ranges, tables, marks, legend, layouts, example
 │   ├── cli.md            # --timezone, output placement, the time zone error
 │   ├── config.md         # timezone
-│   └── run-api.md        # CliOptions.timezone, IncomeSummaries, RunResult.summaries, render_summaries
+│   └── run-api.md        # CliOptions.timezone, IncomeSummaries, RunResult.summaries, render_text, summary_text
 └── tasks.md              # /speckit-tasks
 ```
 
@@ -129,13 +144,13 @@ specs/004-income-summaries/
 
 ```text
 src/monero_income/
-├── cli.py                          # + --timezone; + blank line and rendered summaries
+├── cli.py                          # + --timezone; + blank line and the summary text
 ├── orchestration/
-│   ├── __init__.py                 # + IncomeSummaries, Summary, PeriodFigures, render_summaries
+│   ├── __init__.py                 # + IncomeSummaries, Summary, PeriodFigures, render_text, summary_text
 │   ├── run.py                      # + load zone; summary read in the export's snapshot; build; SummaryError
 │   ├── settings.py                 # + timezone key and option (type and empty checks)
 │   ├── summary.py                  # NEW, pure: record checks, periods, labels, exact sums, flags, build
-│   └── summary_format.py           # NEW, pure: input checks, formats, marks, tables, layouts; summary_lines
+│   └── summary_format.py           # NEW, pure: input checks, formats, marks; rich tables and layouts; render_text, summary_text
 └── primitives/
     ├── errors.py                   # + UnknownTimeZoneError
     └── timezones.py                # NEW: load_zone(name)
@@ -148,7 +163,7 @@ tests/
 │   └── summaries_empty.txt         # NEW
 ├── conftest.py                     # + local_tz fixture (TZ + tzset, restored)
 ├── unit/test_summary.py            # ranges, ISO years, local dates, sums, flags, out-of-range
-├── unit/test_summary_format.py     # formats, marks, widths, layout threshold, no trailing spaces
+├── unit/test_summary_format.py     # formats, marks, rich table style, widths, threshold, no truncation
 ├── unit/test_settings.py           # + timezone
 ├── adapters/test_timezones.py      # load_zone: known, unknown, wrong case, path-like names
 ├── integration/test_summaries.py   # run() sets summaries; agrees with export; golden
@@ -156,6 +171,7 @@ tests/
 ├── integration/test_performance.py # + 100,000 records under one second
 └── cli/                            # --timezone mapping; placement; width plumbing; FR-018 output and exit
 
+pyproject.toml                      # + rich>=15.0.0 (direct dependency; uv.lock updated)
 README.md                           # Usage: timezone, --timezone, the summaries; Status table
 ```
 

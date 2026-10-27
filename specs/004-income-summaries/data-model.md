@@ -78,16 +78,23 @@ the process's local time zone rules, when `zone` is `None` (research R2).
 
 `usd_value` (feature 002, `orchestration/valuation.py`) is reused unchanged.
 
-### orchestration/summary_format.py: text
+### orchestration/summary_format.py: text, with rich
+
+Builds rich renderables and renders them into an in-memory `Console` (research R7). There is
+no terminal and no file I/O.
 
 | Function | Input → output | Rule |
 |----------|----------------|------|
 | `format_xmr_grouped` | `int` → `str` | `f"{whole:,}.{fraction:012d}"` (research R5) |
 | `format_usd` | `Decimal` → `str` | `"$" + format(round_cents(value), ",f")`; `round_cents` from feature 003's `export_format` |
 | `marks` | `PeriodFigures` → `str` | `""`, `"*"`, `"?"`, or `"*?"` |
-| `render_table` | `Summary` → `list[str]` | Title, header, rule, rows, rule, total; every line padded to the table's width ([contracts/summaries.md](contracts/summaries.md)) |
-| `render_summaries` | `(IncomeSummaries, int \| None)` → `list[str]` | Checks its input (26/12/4 periods, non-negative `int` XMR, finite non-negative `Decimal` USD; `SummaryDataError` otherwise), then the layout choice, the legend, or `NO_TRANSACTIONS`; no trailing spaces |
-| `summary_lines` | `(RunResult, int \| None)` → `list[str]` | The guarded rendering stage: the complete lines, or `SummaryError` (research R10) |
+| `check_summaries` | `IncomeSummaries` → `None` | 26/12/4 periods, non-negative `int` XMR, finite non-negative `Decimal` USD; `SummaryDataError` otherwise |
+| `summary_table` | `Summary` → `rich.table.Table` | `Table(title=..., box=box.ROUNDED, header_style="bold")`; columns Period (left), XMR and USD (right), `no_wrap`; `Text` cells; `add_section()` before `Total`; marks padded into the USD cell ([contracts/summaries.md](contracts/summaries.md)) |
+| `table_width` | `Table` → `int` | `Measurement.get(...).maximum` on a probe `Console(width=10_000)` |
+| `side_by_side_width` | `IncomeSummaries` → `int` | weekly + 4 + max(monthly, annual) |
+| `summary_renderable` | `(IncomeSummaries, int \| None)` → `(RenderableType, int)` | The chosen layout (grid or stacked `Group`) plus legend, or `NO_TRANSACTIONS`, and the width it needs |
+| `render_text` | `(IncomeSummaries, int \| None, bool)` → `str` | `check_summaries`, then print `summary_renderable` into `Console(file=StringIO(), width=max(width or 0, needed), color_system="standard" if styled else None, force_terminal=styled, highlight=False, markup=False, emoji=False, legacy_windows=False)` and return the text |
+| `summary_text` | `(RunResult, int \| None, bool)` → `str` | The guarded rendering stage: the complete text, or `SummaryError` (research R10) |
 | `LEGEND`, `NO_TRANSACTIONS` | constants | Texts from the contract |
 
 ## Primitives

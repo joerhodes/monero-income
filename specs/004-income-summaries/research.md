@@ -139,8 +139,10 @@ Both are independent of the locale: Python's `,` format option always uses `,` a
 - **Marks**: `*` when a figure includes a provisional price, `?` when it leaves out an
   unpriced transaction, and `*?` when both apply. They follow the USD figure, separated by a
   space.
-- **Mark column**: if any row in a table has a mark, the table reserves a mark column as
-  wide as its longest mark, so USD figures stay right-aligned.
+- **Mark suffix**: marks are part of the USD cell. If any row in a table has a mark, every
+  USD cell in that table gets a space and its marks padded to the longest mark in the table,
+  so the right-justified figures stay aligned. There is no separate mark column, so the box
+  drawing has no extra border for one.
 - **Legend**: after all the summaries, one blank line, then one line per mark that appears,
   `*` first:
 
@@ -158,38 +160,80 @@ Both are independent of the locale: Python's `,` format option always uses `,` a
 - `†`/`‡`: not ASCII.
 - Letters (`p`, `u`): easy to misread as part of the figure.
 
-## R7. Layout and the width check
+## R7. Tables and layout with rich
 
-**Decision**:
-- **Table**: a title line, a header line, a dashed rule, the period rows, a rule, and the total
-  row.
-- **Columns**: Period (left-aligned), XMR and USD (right-aligned), two spaces apart, each as
-  wide as its widest cell. Each table sizes its own columns, and every line of a table is
-  padded to the table's width.
-- **Side-by-side**:
-  - The weekly table is on the left. Four spaces to its right are the monthly table, a blank
-    line, then the annual table.
-  - It is used when the output is a terminal and the terminal is at least `weekly width + 4 +
-    max(monthly width, annual width)` columns wide.
-  - Trailing spaces are stripped from every line.
-- **One after another**: weekly, blank line, monthly, blank line, annual.
-- **Where it's decided**: the CLI passes `width = shutil.get_terminal_size().columns` only when
-  `sys.stdout.isatty()`, otherwise `None`. The pure renderer in orchestration decides the
-  layout from that value.
+**Decision**: the tables and the side-by-side layout are built with rich, as in the original
+tool. rich becomes a direct dependency (`rich>=15.0.0` in `pyproject.toml`). It was already
+installed as Typer's dependency, at 15.0.0 in `uv.lock`.
+
+- **One table**: `Table(title=<title>, box=box.ROUNDED, header_style="bold")`, the original
+  tool's style.
+  - Columns `Period` (left), `XMR` (right), and `USD` (right), each `no_wrap=True`.
+  - The period rows come first, then `table.add_section()` and the `Total` row, so a rule
+    separates the total.
+  - Every cell is a `Text`, so nothing is parsed as markup.
+  - rich's defaults stand for everything not named here: the title is centered above the
+    table in the `table.title` style, and cells have one space of padding.
+- **Side by side**: a `Table.grid(padding=(0, 4, 0, 0))` with two columns. The weekly table
+  is on the left. On the right is `Group(monthly, Text(""), annual)`.
+- **One after another**: `Group(weekly, Text(""), monthly, Text(""), annual)`.
+- **Legend**: appended to either layout as `Text("")` and one `Text` per mark that appears.
+- **Widths**: each table's width is `Measurement.get(...).maximum`, measured on a probe
+  `Console(width=10_000)`.
+  - `side_by_side_width = weekly + 4 + max(monthly, annual)`.
+  - `sequential_width = max(weekly, monthly, annual)`.
+  - Side by side is used when a terminal width is given and is at least
+    `side_by_side_width`. Otherwise the tables go one after another.
+- **Rendering**: `render_text(summaries, width, styled)` prints the chosen renderable into an
+  in-memory `Console` and returns the captured text. The settings that make the output
+  deterministic are:
+  - `file=io.StringIO()`;
+  - `width=max(width or 0, needed width)`;
+  - `color_system="standard" if styled else None`;
+  - `force_terminal=styled`;
+  - `highlight=False`, `markup=False`, `emoji=False`, `legacy_windows=False`.
+
+  The in-memory console is pure: it writes to memory only (constitution IV). The CLI echoes
+  the text.
+- **The CLI's part**: `width = shutil.get_terminal_size().columns` and `styled=True` only
+  when `sys.stdout.isatty()`. Otherwise `width=None` and `styled=False`, which gives plain
+  text with no ANSI codes in files and pipes.
 - **Placement**: one blank line after the export line, then the summaries (or the
   no-transactions message), then the legend.
 
 **Rationale**:
-- **Layers**: the CLI only measures the terminal (presentation, constitution II). Layout and
-  text are pure and golden-tested in orchestration, as with feature 003's `export_format`.
-- **Height**: in the side-by-side layout the left table is 31 lines and the right side 27, so
-  with the legend the output is at most 34 lines (SC-006: ≤ 40).
-- **Width**: the prototype in the contract needs 97 columns, driven by a 1,234-XMR row.
-  Typical payouts of a few XMR need about 85. An 80-column terminal therefore falls back to
-  one after another; the spec accepts this.
+- **Style**: `box.ROUNDED` with a `bold` header matches the original tool (user decision,
+  2026-10-27). The marks stay ASCII. The box-drawing characters are Unicode, so the
+  contract's earlier "every character is ASCII" rule is dropped. Bold is not a color, so the
+  spec's "colors are out of scope" still holds.
+- **Never a console narrower than the layout**: rich shrinks columns and truncates figures
+  with `…` when the console is narrower than a table. A prototype showed `0.250000000…` at
+  width 30. Giving the console at least the needed width means a narrow terminal soft-wraps
+  long lines and never shortens a figure (spec edge case: "no figure is shortened or
+  dropped").
+- **`highlight=False`**: rich's default highlighter would color numbers on a terminal, which
+  would add color the spec doesn't ask for.
+- **Determinism**: an explicit width, no color system, and no terminal detection make the
+  captured text depend only on the summaries and the width, which is what golden files need.
+  The CLI's own console settings only add bold and the title style on a real terminal.
+- **Height**: side by side, the weekly table is 32 lines (title, top border, header, rule, 26
+  rows, rule, total, bottom border). With the legend, the prototype output is 36 lines
+  (SC-006: ≤ 40).
+- **Width**: the contract example needs 103 columns side by side (prototype: side by side at
+  103, one after another at 102). One after another, it needs 50. The borders and padding add
+  about 6 columns per table compared with plain text, so a typical wallet needs about 95
+  columns, and an 80-column terminal gets the one-after-another layout.
+- **Layers**: orchestration builds and renders (pure), and the CLI measures the terminal and
+  prints text (presentation, constitution II). Both layers may import rich; it is a
+  third-party library, outside the import-linter layers.
 
 **Alternatives considered**:
-- Rich or another table library: a new dependency, and harder to lock in golden files.
+- Hand-built plain-text tables: no dependency, but they don't match the original tool. This
+  replaces the earlier plan.
+- rich's `Columns` for the side-by-side layout: it wraps renderables to fit the console, so
+  the threshold would be rich's and not *W*. An explicit grid makes the threshold testable.
+- Printing straight to a `Console(file=sys.stdout)` in the CLI: a failure partway would leave
+  part of a table on screen (FR-018). Rendering to text first and echoing it once avoids that.
 - Typer's own terminal size helper: deprecated in Click. `shutil.get_terminal_size()` also
   honors `COLUMNS`, which helps when checking by hand.
 
@@ -209,18 +253,25 @@ the result lets tests check sums without parsing text.
 ## R9. Golden files
 
 **Decision**: new golden files in `tests/golden/`:
-- **`summaries_side_by_side.txt`** and **`summaries_sequential.txt`**: rendered from one
-  synthetic set of records, with clock `2026-10-27T15:00:00Z`, zone `America/New_York`, and a
-  width of 200 and `None`. The set covers both marks, a 1,000+ XMR row, a period split by the
-  local date, and an empty period.
-- **`summaries_unmarked.txt`**: all final prices, so no mark column and no legend.
+- **`summaries_side_by_side.txt`** and **`summaries_sequential.txt`**: rendered with
+  `render_text(..., width=200, styled=False)` and `render_text(..., width=None,
+  styled=False)` from one synthetic set of records, with clock `2026-10-27T15:00:00Z` and zone
+  `America/New_York`. The set covers both marks, a 1,000+ XMR row, a period split by the local
+  date, and an empty period.
+- **`summaries_unmarked.txt`**: all final prices, so no mark suffix and no legend.
 - **`summaries_empty.txt`**: the no-transactions message.
 
-They compare the renderer's lines joined with `\n`. A CLI test checks the blank line before
-the summaries and that they come after the export line.
+The tests render into a rich `Console` with an explicit width and no color system, so the
+output doesn't depend on the test machine's terminal or environment. They compare the text
+with trailing spaces stripped from each line. rich pads titles and grid cells with spaces,
+and editors and git often strip trailing whitespace from committed files. The visible
+characters, including every box-drawing character, are locked exactly.
 
-**Rationale**: the constitution locks report output with golden files. Rendering is pure, so
-the golden tests need no wallet, database, or terminal.
+A CLI test checks the blank line before the summaries and that they come after the export
+line.
+
+**Rationale**: the constitution locks report output with golden files. Rendering writes only
+to memory, so the golden tests need no wallet, database, or terminal.
 
 ## R10. Guarding the summary step (FR-018)
 
@@ -232,7 +283,7 @@ clean error. The run prints features 001–003's lines (including the export lin
 |-------|-------|------------------|
 | Reading | `run()`: `summary_reader(conn)` | `StorageReadError`, and any other `Exception` |
 | Computing | `run()`: `build_summaries(records, today, zone)` | `SummaryDataError` (invariants below), and any other `Exception` |
-| Rendering | `summary_lines(result, width)` in orchestration, called by the CLI | `SummaryDataError`, and any other `Exception` |
+| Rendering | `summary_text(result, width, styled)` in orchestration, called by the CLI | `SummaryDataError`, and any other `Exception` (including rich's) |
 
 - **Invariants**: `build_summaries` checks every record and raises `SummaryDataError` naming
   the transaction id. The checks are:
@@ -242,12 +293,12 @@ clean error. The run prints features 001–003's lines (including the export lin
   - `price_status` is `None` exactly when the price is, and otherwise `provisional` or
     `final`.
 
-  `render_summaries` checks its input the same way: the period counts are 26, 12 and 4, XMR
+  `render_text` checks its input the same way: the period counts are 26, 12 and 4, XMR
   values are non-negative `int`s, and USD values are finite and non-negative `Decimal`s. So a
   malformed `IncomeSummaries` raises `SummaryDataError` instead of printing nonsense.
 - **Error type**: `SummaryError(RunError)` carries `result: RunResult`, which holds the sync,
   pricing, import and export results with `summaries=None`. `run()` raises it for the reading
-  and computing stages. `summary_lines` raises it for the rendering stage.
+  and computing stages. `summary_text` raises it for the rendering stage.
 - **Message**:
 
   ```text
@@ -261,12 +312,13 @@ clean error. The run prints features 001–003's lines (including the export lin
   - anything else: `unexpected <ExceptionType>: <error>`.
 
   No traceback is printed, and no secret appears (constitution, feature 001 rules).
-- **No partial output**: the CLI renders the complete summary lines into a list before
-  printing anything. It then prints, in order:
+- **No partial output**: the CLI calls `summary_text`, which renders the complete summaries
+  into an in-memory rich `Console` (R7) and returns the text, before printing anything. It
+  then prints, in order:
   - the warnings (as today);
   - features 001–003's lines;
-  - then either a blank line and the summary lines, or, if rendering failed, nothing more
-    on stdout and the `Error:` line on stderr.
+  - then either a blank line and the summary text, or, if rendering failed, nothing more on
+    stdout and the `Error:` line on stderr.
 - **Not guarded**: `KeyboardInterrupt` is a `BaseException`, so it still propagates. Ctrl-C
   during the summary step exits 130 with feature 001's message and prints no lines.
 

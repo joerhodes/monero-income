@@ -26,9 +26,9 @@ Prerequisites: features 001–003 set up (wallet RPC running, config file in pla
 
 | # | Do | Expect |
 |---|----|--------|
-| 1 | `monero-income` in a wide terminal (at least 100 columns) | After `Exported …`, a blank line, then weekly on the left, monthly above annual on the right |
+| 1 | `monero-income` in a wide terminal (at least 110 columns) | After `Exported …`, a blank line, then weekly on the left, monthly above annual on the right, in rounded boxes with bold headers |
 | 2 | `COLUMNS=60 monero-income` | Weekly, then monthly, then annual, one after another |
-| 3 | `monero-income \| cat` and `monero-income > /tmp/out.txt` | One after another, whatever the terminal width; `grep -c ' $' /tmp/out.txt` is `0` |
+| 3 | `monero-income \| cat` and `monero-income > /tmp/out.txt` | One after another, whatever the terminal width; `grep -c $'\x1b' /tmp/out.txt` is `0` (no ANSI codes in redirected output) |
 | 4 | Count the rows | 26 weekly rows ending with this week's `YYYY-Www`, 12 monthly ending with this month, 4 annual ending with this year, each followed by `Total` |
 | 5 | Pick a month and sum its rows in the export: `awk -F, '$3 ~ /^2026-10/ {x+=$4} END {print x}' ~/reports/xmr_income.csv` | Matches that month's XMR, give or take transactions near midnight that fall in a different month in local time (UTC export, local summaries) |
 | 6 | If a day is still provisional (a payout today) | Its week, month, year, and the totals carry `*`; the legend explains `*` |

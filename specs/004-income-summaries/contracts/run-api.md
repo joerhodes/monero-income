@@ -40,19 +40,22 @@ class RunResult:
 class SummaryError(RunError):                 # new; FR-018 (research R10)
     result: RunResult                         # sync/import/pricing/export results; summaries=None
 
-def render_summaries(summaries: IncomeSummaries, width: int | None) -> list[str]:
-    """Pure. The lines after the blank line (summaries.md); width None = not a terminal.
+def render_text(summaries: IncomeSummaries, width: int | None, styled: bool) -> str:
+    """The text after the blank line (summaries.md), rendered with rich into an in-memory
+    Console of width max(width or 0, the layout's width). width None = not a terminal;
+    styled adds ANSI bold/title styles (terminal only).
 
     Raises SummaryDataError on a malformed IncomeSummaries."""
 
-def summary_lines(result: RunResult, width: int | None) -> list[str]:
-    """The guarded rendering stage: render_summaries(result.summaries, width), complete.
+def summary_text(result: RunResult, width: int | None, styled: bool) -> str:
+    """The guarded rendering stage: render_text(result.summaries, width, styled), complete;
+    "" when result.summaries is None.
 
     Any Exception becomes SummaryError(message, result=result)."""
 ```
 
-`IncomeSummaries`, `Summary`, `PeriodFigures`, `SummaryError`, `render_summaries` and
-`summary_lines` are exported from `monero_income.orchestration` for the CLI.
+`IncomeSummaries`, `Summary`, `PeriodFigures`, `SummaryError`, `render_text` and
+`summary_text` are exported from `monero_income.orchestration` for the CLI.
 
 `run()` gains one keyword-only seam, `summary_reader`:
 
@@ -89,5 +92,5 @@ Failures:
 - **Reading or computing** (the kept read failure, or any `Exception` from step 5): `run()`
   raises `SummaryError` carrying the result of steps 1–4, after the export is written. Its
   message is the one in [cli.md](cli.md).
-- **Rendering**: `summary_lines` raises `SummaryError` carrying the result it was given.
+- **Rendering**: `summary_text` raises `SummaryError` carrying the result it was given.
 - **`KeyboardInterrupt`**: propagates at any step, as before.
