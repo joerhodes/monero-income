@@ -40,6 +40,10 @@ recorded transactions, a single message replaces the summaries."
 - Q: If the run writes the export but then can't read the recorded data for the summaries,
   should it still print the sync, pricing, and export lines before the error? → A: Yes: it
   prints those lines, then the error, and ends with a failure status.
+- Q: Should FR-018 cover only a failed read, or every way the summaries can fail after the
+  export is written? → A: Every way: reading the data, unexpected data, or computing or
+  displaying them. It is a deliberate safeguard: the whole summary step is guarded so any
+  failure becomes a clean error, even though such failures are not expected in normal use.
 
 ## User Scenarios & Testing *(mandatory)*
 
@@ -244,9 +248,10 @@ the file's setting still there and the command-line option set to UTC (it counts
   as usual; lines may wrap, but no figure is shortened or dropped.
 - **Run fails before the summaries** (invalid configuration, sync failure, storage error
   during pricing, export write failure): no summary is shown, as no export line is shown.
-- **Recorded data can't be read for the summaries** (after the export was written): the run
+- **Summaries can't be produced** (after the export was written), for any reason: the data
+  can't be read, it is unexpected, or computing or displaying the summaries fails. The run
   prints the sync, pricing, and export lines, then an error, and ends with a failure status;
-  the export already written stays.
+  no partial summary is shown, and the export already written stays (FR-018).
 
 ## Requirements *(mandatory)*
 
@@ -299,10 +304,10 @@ the file's setting still there and the command-line option set to UTC (it counts
   transactions to summarize MUST be shown instead of the summaries and legend.
 - **FR-017**: Displaying the summaries MUST NOT change any recorded transaction or price, or
   the export.
-- **FR-018**: If the recorded transactions and prices can't be read for the summaries, the run
-  MUST still print feature 001, 002, and 003's lines, including the export line, then show an
-  error and end with a failure status; no summary is shown, and the export already written
-  MUST be left as it is.
+- **FR-018**: If the summaries can't be produced for any reason (reading the data, unexpected
+  data, or computing or displaying them), the run MUST still print feature 001, 002, and
+  003's lines, including the export line, then show an error and end with a failure status;
+  no partial summary is shown, and the export already written MUST be left as it is.
 - **FR-019**: The summaries MUST reflect the recorded transactions and prices as they stand at
   the end of the run's pricing (and import, if any), the same data as the run's export.
 - **FR-020**: Feature 001, 002, and 003's output lines MUST be unchanged; the summaries (or the
