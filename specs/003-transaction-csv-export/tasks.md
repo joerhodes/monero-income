@@ -317,7 +317,7 @@ every column and recompute any `usd_value`.
 
   No new dependency (don't add hypothesis).
 - [X] T033 Run all five gates and fix failures until they pass with coverage ≥ 90%.
-- [ ] T034 Run the manual checks in `specs/003-transaction-csv-export/quickstart.md` against the real wallet and record the results in the PR description. Don't commit the export, the database, or the config file.
+- [X] T034 Run the manual checks in `specs/003-transaction-csv-export/quickstart.md` against the real wallet and record the results in the PR description. Don't commit the export, the database, or the config file.
 
 ---
 
