@@ -219,6 +219,77 @@ def test_no_records_gives_zeros() -> None:
         assert all(p.piconero == 0 and p.usd == 0 for p in (*summary.periods, summary.total))
 
 
+# Marks (FR-012, US2)
+
+
+def flags(figures: PeriodFigures) -> tuple[bool, bool]:
+    return figures.provisional, figures.unpriced
+
+
+def test_a_provisional_price_flags_its_period() -> None:
+    summaries = build_summaries(
+        [rec("2026-10-27T11:00:00", 2 * XMR, "163.4", "provisional")], TODAY, NY
+    )
+    assert flags(row(summaries.weekly, "2026-W44")) == (True, False)
+    assert row(summaries.weekly, "2026-W44").usd == Decimal("326.8")
+
+
+def test_an_unpriced_record_flags_its_period_and_adds_no_usd() -> None:
+    records = [rec("2026-10-20T18:45:10", 731_000_000_000), rec("2026-10-21T12:00:00", XMR, "150")]
+    summaries = build_summaries(records, TODAY, NY)
+    week = row(summaries.weekly, "2026-W43")
+    assert flags(week) == (False, True)
+    assert week.usd == Decimal(150)
+    assert week.piconero == 1_731_000_000_000
+
+
+def test_a_period_with_both_kinds_has_both_flags() -> None:
+    records = [
+        rec("2026-10-27T11:00:00", 2 * XMR, "163.4", "provisional"),
+        rec("2026-10-26T12:00:00", XMR),
+    ]
+    summaries = build_summaries(records, TODAY, NY)
+    assert flags(row(summaries.weekly, "2026-W44")) == (True, True)
+
+
+def test_a_period_of_only_unpriced_records_is_zero_usd_and_flagged() -> None:
+    summaries = build_summaries([rec("2026-10-20T18:45:10", 731_000_000_000)], TODAY, NY)
+    week = row(summaries.weekly, "2026-W43")
+    assert week.usd == Decimal(0)
+    assert flags(week) == (False, True)
+
+
+def test_final_prices_flag_nothing() -> None:
+    summaries = build_summaries([rec("2026-06-10T08:30:00", XMR, "152.345")], TODAY, NY)
+    for summary in (summaries.weekly, summaries.monthly, summaries.annual):
+        assert all(flags(p) == (False, False) for p in (*summary.periods, summary.total))
+
+
+def test_total_flags_are_any_of_their_periods() -> None:
+    records = [
+        rec("2025-03-14T09:00:00", XMR),  # unpriced, but only in the annual range
+        rec("2026-10-27T11:00:00", 2 * XMR, "163.4", "provisional"),
+        rec("2026-06-10T08:30:00", XMR, "152.345"),
+    ]
+    summaries = build_summaries(records, TODAY, NY)
+    for summary in (summaries.weekly, summaries.monthly, summaries.annual):
+        assert summary.total.provisional == any(p.provisional for p in summary.periods)
+        assert summary.total.unpriced == any(p.unpriced for p in summary.periods)
+    assert flags(summaries.weekly.total) == (True, False)
+    assert flags(summaries.monthly.total) == (True, False)
+    assert flags(summaries.annual.total) == (True, True)
+
+
+def test_a_flagged_record_outside_the_range_flags_nothing() -> None:
+    records = [
+        rec("2019-01-10T12:00:00", XMR),
+        rec("2019-02-10T12:00:00", XMR, "50", "provisional"),
+    ]
+    summaries = build_summaries(records, TODAY, NY)
+    for summary in (summaries.weekly, summaries.monthly, summaries.annual):
+        assert all(flags(p) == (False, False) for p in (*summary.periods, summary.total))
+
+
 # Record checks (FR-018, research R10)
 
 

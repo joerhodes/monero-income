@@ -290,23 +290,23 @@ neither; the totals show `*?`; the legend has both lines.
 
 ### Tests for User Story 2 ⚠️ (write first, confirm they fail)
 
-- [ ] T016 [P] [US2] Add to `tests/unit/test_summary.py`:
+- [X] T016 [P] [US2] Add to `tests/unit/test_summary.py`:
   - a period with a provisional-priced record has `provisional=True`;
   - one with an unpriced record has `unpriced=True` and `usd` excluding it;
   - one with both has both;
   - a period whose records are all unpriced has `usd == Decimal(0)` and `unpriced=True`;
   - a final-only period has neither;
   - each total's flags are the `any` of its periods' flags, and a flagged record outside the range doesn't flag the total (FR-012, US2-1 to US2-5, US2-7).
-- [ ] T017 [P] [US2] Add to `tests/unit/test_summary_format.py`:
+- [X] T017 [P] [US2] Add to `tests/unit/test_summary_format.py`:
   - **`marks`**: `""`, `"*"`, `"?"`, `"*?"` for the four flag combinations;
   - **Mark suffix**: in a table where any row has a mark, every USD cell is `format_usd(...) + " " + marks.ljust(longest)`, blank-padded for unmarked rows, so the rendered figures stay right-aligned. The table has no fourth column;
   - **No marks**: a table with no marks renders exactly as in US1;
   - **Legend**: after the layout, `Text("")` and then only the legend lines for marks that appear, `*` first, with the exact texts from contracts/summaries.md; there is no legend when no mark appears (US2-6). With `width=None`, each legend line is one rendered line, not wrapped, and the needed width is at least 54.
-- [ ] T018 [P] [US2] Add `tests/golden/summaries_sequential.txt`: `render_text(..., None, styled=False)` of the contract's example records (contracts/summaries.md, Example), today 2026-10-27, NY. It is the contract's one-after-another example. Add it to `tests/integration/test_summaries_golden.py`, comparing with trailing spaces stripped per line.
+- [X] T018 [P] [US2] Add `tests/golden/summaries_sequential.txt`: `render_text(..., None, styled=False)` of the contract's example records (contracts/summaries.md, Example), today 2026-10-27, NY. It is the contract's one-after-another example. Add it to `tests/integration/test_summaries_golden.py`, comparing with trailing spaces stripped per line.
 ### Implementation for User Story 2
 
-- [ ] T019 [US2] In `src/monero_income/orchestration/summary.py` `summarize`, set `provisional` when any counted record has `price_status == "provisional"` and `unpriced` when any counted record has no price. Set the total's flags to the `any` of the periods' flags.
-- [ ] T020 [US2] In `src/monero_income/orchestration/summary_format.py`:
+- [X] T019 [US2] In `src/monero_income/orchestration/summary.py` `summarize`, set `provisional` when any counted record has `price_status == "provisional"` and `unpriced` when any counted record has no price. Set the total's flags to the `any` of the periods' flags.
+- [X] T020 [US2] In `src/monero_income/orchestration/summary_format.py`:
   - add `marks(figures: PeriodFigures) -> str` (`"*"` if provisional, then `"?"` if unpriced);
   - in `summary_table`, append the mark suffix to the USD cell text as in T017;
   - add `LEGEND: dict[str, str]` with the contract's two lines;

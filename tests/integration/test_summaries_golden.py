@@ -13,11 +13,16 @@ Today is 2026-10-27 in America/New_York, and every price is final:
 - 2025-03: 0.5 XMR at 140 = 70, in no weekly or monthly row; only in 2025 and the annual total.
 - Weekly and monthly totals: 225 + 40.001 + 188,069.9025 + 115.8635 = 188,450.767, so
   $188,450.77. Annual total: + 70 = $188,520.77.
+
+summaries_sequential.txt is the contract's one-after-another example, copied from
+contracts/summaries.md, whose notes give its arithmetic. 2026-10-20 has no price (`?`) and
+2026-10-27's price is provisional (`*`).
 """
 
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -31,9 +36,17 @@ NY = ZoneInfo("America/New_York")
 TODAY = date(2026, 10, 27)
 
 
-def rec(txid: str, moment: str, amount: int, price: str) -> ExportRecord:
+def rec(
+    txid: str,
+    moment: str,
+    amount: int,
+    price: str | None,
+    status: Literal["provisional", "final"] = "final",
+) -> ExportRecord:
     occurred_at = int(datetime.fromisoformat(moment).replace(tzinfo=UTC).timestamp())
-    return ExportRecord(txid, 1, amount, occurred_at, Decimal(price), "final")
+    if price is None:
+        return ExportRecord(txid, 1, amount, occurred_at, None, None)
+    return ExportRecord(txid, 1, amount, occurred_at, Decimal(price), status)
 
 
 UNMARKED = [
@@ -44,6 +57,15 @@ UNMARKED = [
     rec("midnight", "2026-10-01T03:30:00", 731_000_000_000, "158.5"),
 ]
 
+# contracts/summaries.md, Example
+SEQUENTIAL = [
+    rec("old", "2025-03-14T09:00:00", 1_500_000_000_000, "150"),
+    rec("may", "2026-05-05T12:00:00", 250_000_000_000, "160.004"),
+    rec("june", "2026-06-10T08:30:00", 1_234_500_000_000_000, "152.345"),
+    rec("unpriced", "2026-10-20T18:45:10", 731_000_000_000, None),
+    rec("today", "2026-10-27T11:00:00", 2_000_000_000_000, "163.40000000000001", "provisional"),
+]
+
 
 def stripped(text: str) -> list[str]:
     return [line.rstrip() for line in text.split("\n")]
@@ -51,7 +73,11 @@ def stripped(text: str) -> list[str]:
 
 @pytest.mark.parametrize(
     ("name", "records"),
-    [("summaries_unmarked.txt", UNMARKED), ("summaries_empty.txt", [])],
+    [
+        ("summaries_unmarked.txt", UNMARKED),
+        ("summaries_empty.txt", []),
+        ("summaries_sequential.txt", SEQUENTIAL),
+    ],
 )
 def test_summaries_match_the_golden_file(name: str, records: list[ExportRecord]) -> None:
     text = render_text(build_summaries(records, TODAY, NY), None, styled=False)

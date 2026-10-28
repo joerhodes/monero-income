@@ -145,23 +145,30 @@ def summarize(
     """One summary: a row per label, oldest first, and their total. Other records are skipped."""
     piconero = dict.fromkeys(labels, 0)
     usd: dict[str, list[Decimal]] = {label: [] for label in labels}
+    provisional = dict.fromkeys(labels, False)
+    unpriced = dict.fromkeys(labels, False)
     for day, record in dated:
         label = label_of(day)
         if label not in piconero:
             continue
         piconero[label] += record.amount_piconero
-        if record.usd_price is not None:
+        if record.usd_price is None:
+            unpriced[label] = True
+        else:
             usd[label].append(usd_value(record.amount_piconero, record.usd_price))
+            provisional[label] |= record.price_status == "provisional"
     periods = tuple(
-        PeriodFigures(label, piconero[label], exact_sum(usd[label]), False, False)
+        PeriodFigures(
+            label, piconero[label], exact_sum(usd[label]), provisional[label], unpriced[label]
+        )
         for label in labels
     )
     total = PeriodFigures(
         TOTAL_LABEL,
         sum(period.piconero for period in periods),
         exact_sum(period.usd for period in periods),
-        False,
-        False,
+        any(period.provisional for period in periods),
+        any(period.unpriced for period in periods),
     )
     return Summary(title, periods, total)
 

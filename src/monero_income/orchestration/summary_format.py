@@ -23,6 +23,7 @@ from monero_income.orchestration.summary import (
     WEEKS,
     YEARS,
     IncomeSummaries,
+    PeriodFigures,
     Summary,
     SummaryDataError,
     summary_failure_message,
@@ -31,6 +32,10 @@ from monero_income.orchestration.summary import (
 NO_TRANSACTIONS = "No transactions to summarize yet."
 TABLE_GAP = 4  # columns between the side-by-side tables
 PROBE_WIDTH = 10_000  # wide enough that measuring never shrinks a table
+LEGEND: dict[str, str] = {
+    "*": "* includes a provisional price, which may still change",
+    "?": "? leaves out transactions that have no price yet",
+}
 
 
 def format_xmr_grouped(piconero: int) -> str:
@@ -65,21 +70,30 @@ def check_summaries(summaries: IncomeSummaries) -> None:
                 )
 
 
+def marks(figures: PeriodFigures) -> str:
+    return ("*" if figures.provisional else "") + ("?" if figures.unpriced else "")
+
+
 def summary_table(summary: Summary) -> Table:
     table = Table(title=summary.title, box=box.ROUNDED, header_style="bold")
     table.add_column("Period", justify="left", no_wrap=True)
     table.add_column("XMR", justify="right", no_wrap=True)
     table.add_column("USD", justify="right", no_wrap=True)
+    # Every USD cell carries the table's longest mark width, so the figures stay aligned.
+    longest = max(len(marks(figures)) for figures in (*summary.periods, summary.total))
     for figures in summary.periods:
-        table.add_row(*_cells(figures.label, figures.piconero, figures.usd))
+        table.add_row(*_cells(figures, longest))
     table.add_section()
-    table.add_row(*_cells(summary.total.label, summary.total.piconero, summary.total.usd))
+    table.add_row(*_cells(summary.total, longest))
     return table
 
 
-def _cells(label: str, piconero: int, usd: Decimal) -> tuple[Text, Text, Text]:
+def _cells(figures: PeriodFigures, longest: int) -> tuple[Text, Text, Text]:
+    usd = format_usd(figures.usd)
+    if longest:
+        usd += " " + marks(figures).ljust(longest)
     # Text cells are never parsed as markup or highlighted.
-    return Text(label), Text(format_xmr_grouped(piconero)), Text(format_usd(usd))
+    return Text(figures.label), Text(format_xmr_grouped(figures.piconero)), Text(usd)
 
 
 def table_width(table: Table) -> int:
@@ -96,7 +110,24 @@ def summary_renderable(summaries: IncomeSummaries, width: int | None) -> tuple[R
         for summary in (summaries.weekly, summaries.monthly, summaries.annual)
     )
     needed = max(table_width(table) for table in (weekly, monthly, annual))
-    return Group(weekly, Text(""), monthly, Text(""), annual), needed
+    layout: list[RenderableType] = [weekly, Text(""), monthly, Text(""), annual]
+    legend = _legend(summaries)
+    if legend:
+        layout.append(Text(""))
+        layout.extend(Text(line) for line in legend)
+        # rich would wrap a legend line wider than the layout.
+        needed = max(needed, *(len(line) for line in legend))
+    return Group(*layout), needed
+
+
+def _legend(summaries: IncomeSummaries) -> list[str]:
+    """The legend lines for the marks that appear anywhere, ``*`` first."""
+    shown = "".join(
+        marks(figures)
+        for summary in (summaries.weekly, summaries.monthly, summaries.annual)
+        for figures in (*summary.periods, summary.total)
+    )
+    return [line for mark, line in LEGEND.items() if mark in shown]
 
 
 def render_text(summaries: IncomeSummaries, width: int | None, styled: bool) -> str:
