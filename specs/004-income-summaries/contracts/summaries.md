@@ -84,7 +84,8 @@ terminal, and no width otherwise. Table widths are rich's measured widths.
 - **One after another**: used otherwise. It shows the weekly table, a blank line, the monthly
   table, a blank line, then the annual table.
 - **Console width**: the text is rendered at a width of at least the chosen layout's width,
-  so rich never shrinks a column or truncates a figure. On a terminal narrower than one
+  so rich never shrinks a column or truncates a figure. When the legend is shown, the width
+  is also at least its longest line, so rich never wraps it. On a terminal narrower than one
   table, the terminal wraps the lines instead.
 - **Trailing spaces**: rich pads titles and the grid's cells with spaces, so lines may end
   in spaces. Golden comparisons strip trailing spaces from each line.
@@ -166,8 +167,78 @@ Side by side (needs 103 columns; trailing spaces not shown):
 ? leaves out transactions that have no price yet
 ```
 
-One after another (needs 50 columns): the same three tables, each with its title, stacked
-with a blank line between them, then the same legend.
+One after another (needs 54 columns, for the legend's first line; trailing spaces not shown):
+
+```text
+                  Weekly Summary
+╭──────────┬────────────────────┬────────────────╮
+│ Period   │                XMR │            USD │
+├──────────┼────────────────────┼────────────────┤
+│ 2026-W19 │     0.250000000000 │         $40.00 │
+│ 2026-W20 │     0.000000000000 │          $0.00 │
+│ 2026-W21 │     0.000000000000 │          $0.00 │
+│ 2026-W22 │     0.000000000000 │          $0.00 │
+│ 2026-W23 │     0.000000000000 │          $0.00 │
+│ 2026-W24 │ 1,234.500000000000 │    $188,069.90 │
+│ 2026-W25 │     0.000000000000 │          $0.00 │
+│ 2026-W26 │     0.000000000000 │          $0.00 │
+│ 2026-W27 │     0.000000000000 │          $0.00 │
+│ 2026-W28 │     0.000000000000 │          $0.00 │
+│ 2026-W29 │     0.000000000000 │          $0.00 │
+│ 2026-W30 │     0.000000000000 │          $0.00 │
+│ 2026-W31 │     0.000000000000 │          $0.00 │
+│ 2026-W32 │     0.000000000000 │          $0.00 │
+│ 2026-W33 │     0.000000000000 │          $0.00 │
+│ 2026-W34 │     0.000000000000 │          $0.00 │
+│ 2026-W35 │     0.000000000000 │          $0.00 │
+│ 2026-W36 │     0.000000000000 │          $0.00 │
+│ 2026-W37 │     0.000000000000 │          $0.00 │
+│ 2026-W38 │     0.000000000000 │          $0.00 │
+│ 2026-W39 │     0.000000000000 │          $0.00 │
+│ 2026-W40 │     0.000000000000 │          $0.00 │
+│ 2026-W41 │     0.000000000000 │          $0.00 │
+│ 2026-W42 │     0.000000000000 │          $0.00 │
+│ 2026-W43 │     0.731000000000 │        $0.00 ? │
+│ 2026-W44 │     2.000000000000 │      $326.80 * │
+├──────────┼────────────────────┼────────────────┤
+│ Total    │ 1,237.481000000000 │ $188,436.70 *? │
+╰──────────┴────────────────────┴────────────────╯
+
+                 Monthly Summary
+╭─────────┬────────────────────┬────────────────╮
+│ Period  │                XMR │            USD │
+├─────────┼────────────────────┼────────────────┤
+│ 2025-11 │     0.000000000000 │          $0.00 │
+│ 2025-12 │     0.000000000000 │          $0.00 │
+│ 2026-01 │     0.000000000000 │          $0.00 │
+│ 2026-02 │     0.000000000000 │          $0.00 │
+│ 2026-03 │     0.000000000000 │          $0.00 │
+│ 2026-04 │     0.000000000000 │          $0.00 │
+│ 2026-05 │     0.250000000000 │         $40.00 │
+│ 2026-06 │ 1,234.500000000000 │    $188,069.90 │
+│ 2026-07 │     0.000000000000 │          $0.00 │
+│ 2026-08 │     0.000000000000 │          $0.00 │
+│ 2026-09 │     0.000000000000 │          $0.00 │
+│ 2026-10 │     2.731000000000 │     $326.80 *? │
+├─────────┼────────────────────┼────────────────┤
+│ Total   │ 1,237.481000000000 │ $188,436.70 *? │
+╰─────────┴────────────────────┴────────────────╯
+
+                 Annual Summary
+╭────────┬────────────────────┬────────────────╮
+│ Period │                XMR │            USD │
+├────────┼────────────────────┼────────────────┤
+│ 2023   │     0.000000000000 │          $0.00 │
+│ 2024   │     0.000000000000 │          $0.00 │
+│ 2025   │     1.500000000000 │        $225.00 │
+│ 2026   │ 1,237.481000000000 │ $188,436.70 *? │
+├────────┼────────────────────┼────────────────┤
+│ Total  │ 1,238.981000000000 │ $188,661.70 *? │
+╰────────┴────────────────────┴────────────────╯
+
+* includes a provisional price, which may still change
+? leaves out transactions that have no price yet
+```
 
 Notes on the example:
 

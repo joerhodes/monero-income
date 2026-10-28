@@ -86,9 +86,8 @@ which matches.
 
 **Project Type**: CLI application (single package, `src/` layout)
 
-**Performance Goals**: SC-007, under one second for 100,000 transactions. Measured during
-planning: the exact sum takes 5 ms and the date conversion 63 ms per 100,000 records. A
-`test_performance.py` case covers it.
+**Performance Goals**: none. Display time is not a requirement (spec Clarifications,
+2026-10-28).
 
 **Constraints**:
 - No `float` (constitution III).
@@ -167,8 +166,9 @@ tests/
 ├── unit/test_settings.py           # + timezone
 ├── adapters/test_timezones.py      # load_zone: known, unknown, wrong case, path-like names
 ├── integration/test_summaries.py   # run() sets summaries; agrees with export; golden
+|-- integration/test_summaries_golden.py # NEW
 ├── integration/test_summary_failures.py # NEW: reading/computing failures → SummaryError; export kept
-├── integration/test_performance.py # + 100,000 records under one second
+|-- integration/test_summary_timezone.py # NEW
 └── cli/                            # --timezone mapping; placement; width plumbing; FR-018 output and exit
 
 pyproject.toml                      # + rich>=15.0.0 (direct dependency; uv.lock updated)

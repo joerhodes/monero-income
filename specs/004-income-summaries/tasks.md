@@ -74,6 +74,7 @@ on its own.
   - **`Summary`**: `title: str`, `periods: tuple[PeriodFigures, ...]`, `total: PeriodFigures`.
   - **`IncomeSummaries`**: `weekly: Summary`, `monthly: Summary`, `annual: Summary`, `transactions: int` (`# all recorded transactions; 0 → the message`).
   - **Constants**: `WEEKLY_TITLE = "Weekly Summary"`, `MONTHLY_TITLE = "Monthly Summary"`, `ANNUAL_TITLE = "Annual Summary"`, `WEEKS = 26`, `MONTHS = 12`, `YEARS = 4`, `TOTAL_LABEL = "Total"`.
+  - **`summary_failure_message(reason: str, export_path: Path) -> str`**: `f"cannot show the income summaries: {reason}. The export was written to {export_path}; recorded transactions and prices were kept."`. It lives here, not in `summary_format.py`, because both `summary_format.py` (T012) and `run.py` (T013) use it, and `summary_format.py` imports `run.py`. Putting it in `summary_format.py` would make the two import each other.
 - [ ] T003 In `src/monero_income/orchestration/run.py`:
   - Add `summaries: IncomeSummaries | None = None` as the last field of `RunResult`, commented `# set by every successful run()`.
   - Add `class SummaryError(RunError)`, docstring "The summary step failed after the export was written (FR-018)." Its `__init__(self, message: str, result: RunResult)` stores `self.result`.
@@ -117,6 +118,8 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - a record older than the oldest shown period is in no row and no total, but is counted in `transactions`;
     - a record dated after today counts in nothing;
     - the US1-9 midnight cases (NY): `2026-11-01T03:30:00Z` → month `2026-10`, `2026-10-26T03:30:00Z` → week `2026-W43`;
+    - both sides of the 2026-11-01 daylight-saving change (NY), with today `2026-11-10`: `2026-11-01T03:30:00Z` (23:30 EDT on 2026-10-31, before the change) → month `2026-10`, week `2026-W44`; `2026-11-02T04:30:00Z` (23:30 EST on 2026-11-01, after it) → month `2026-11`, week `2026-W44`. Also `local_date` gives `date(2026, 10, 31)` and `date(2026, 11, 1)` for them;
+    - a week split across two months: records on `2026-08-31` and `2026-09-01` (both `2026-W36`, noon UTC) give one weekly row `2026-W36` holding both, and separate monthly rows `2026-08` and `2026-09` holding one each;
     - each total's `piconero`/`usd` equals the exact sum of its periods;
     - period counts are 26/12/4, oldest first, with titles from T002;
     - with no records, `transactions == 0` and every figure is zero.
@@ -170,13 +173,13 @@ matches its period's sum, empty periods show zero, and the totals match the peri
   - **Computing** (unexpected data): a reader returning one record with a `Decimal("NaN")` price, one with a negative amount, and one with `price_status="final"` and no price. Each reason is the `SummaryDataError` message naming the txid.
   - **Not guarded**: a reader raising `KeyboardInterrupt`. It propagates and is not turned into a `SummaryError`.
 - [ ] T010 [P] [US1] Add CLI tests:
-  - **In `tests/cli/test_cli_success.py`**: extend `FakeRun` with an optional `summaries: IncomeSummaries | None`. Then:
+  - **In `tests/cli/test_cli_success.py`**: extend `FakeRun` with an optional `summaries: IncomeSummaries | None`. A `FakeRun` that sets `summaries` also sets `exported`, as `run()` does (T014 passes `exported.path` to `summary_text`). Then:
     - with summaries, stdout is features 001–003's lines, then `""`, then exactly `render_text(summaries, None, styled=False)`, with no ANSI codes (`CliRunner` isn't a terminal);
     - with `transactions == 0`, the line after `""` is `No transactions to summarize yet.`;
     - with `summaries=None`, the output is unchanged from feature 003.
   - **In `tests/cli/test_cli_errors.py`** (FR-018):
     - `run` raising `SummaryError(message, result)`, where `result` has `recorded=2` and an `exported` path: stdout is exactly the `_summary_lines(result)` lines, ending with `Exported …`, with no blank line after them; stderr is `Error: <message>`; exit 1;
-    - a rendering failure: a `FakeRun` whose summaries have a weekly summary of 25 periods. The same assertions hold, with the message starting `cannot show the income summaries: unexpected data`, and stdout has no table line;
+    - a rendering failure: a `FakeRun` with an `exported` path and summaries whose weekly summary has 25 periods. The same assertions hold, with the message starting `cannot show the income summaries: unexpected data`, and stdout has no table line;
     - a renderer patched to raise `RuntimeError("boom")` (monkeypatch `render_text` in `monero_income.orchestration.summary_format`): message `… unexpected RuntimeError: boom. The export was written to …`; exit 1;
     - in all three, no `Traceback` appears in the output.
 
@@ -236,11 +239,11 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     2. `renderable, needed = summary_renderable(summaries, width)`.
     3. Print it into `Console(file=io.StringIO(), width=max(width or 0, needed), color_system="standard" if styled else None, force_terminal=styled, highlight=False, markup=False, emoji=False, legacy_windows=False)`.
     4. Return the buffer's text.
-  - **`summary_text(result: RunResult, width: int | None, styled: bool) -> str`**:
+  - **`summary_text(result: RunResult, export_path: Path, width: int | None, styled: bool) -> str`**:
+    - `export_path` is the export the run wrote, passed in by the CLI, so this function never reads the optional `result.exported` and needs no runtime check;
     - if `result.summaries is None`, return `""`;
     - otherwise return the complete `render_text(...)` text;
-    - on any `Exception` (not `BaseException`), raise `SummaryError(summary_failure_message(reason, result.exported.path), result)`, where `reason` is the `SummaryDataError` message or `f"unexpected {type(error).__name__}: {error}"`.
-  - **`summary_failure_message(reason: str, export_path: Path) -> str`**: `f"cannot show the income summaries: {reason}. The export was written to {export_path}; recorded transactions and prices were kept."`. `run.py` uses the same helper.
+    - on any `Exception` (not `BaseException`), raise `SummaryError(summary_failure_message(reason, export_path), result)`, where `reason` is the `SummaryDataError` message or `f"unexpected {type(error).__name__}: {error}"`. `summary_failure_message` is imported from `summary.py` (T002).
 
   Re-export `render_text` and `summary_text` from `orchestration/__init__.py`.
 - [ ] T013 [US1] Wire the summary step into `run()` in `src/monero_income/orchestration/run.py` (contracts/run-api.md, research R1, R10):
@@ -256,14 +259,14 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     ```
 
   - **Order**: write the export exactly as today. Its failures are unchanged.
-  - **Build**: then, if `summary_failure` is set, raise. Otherwise call `build_summaries(summary_records, today, zone)`, catching `Exception`. Either way, raise `SummaryError(summary_failure_message(reason, exported.path), partial)`:
+  - **Build**: then, if `summary_failure` is set, raise. Otherwise call `build_summaries(summary_records, today, zone)`, catching `Exception`. Either way, raise `SummaryError(summary_failure_message(reason, exported.path), partial)`, with `summary_failure_message` imported from `summary.py` (T002):
     - `partial` is the `RunResult` with `summaries=None`;
     - `reason` is `cannot read database {settings.db_path}: {error}` for a `StorageReadError`, the message for a `SummaryDataError`, and `unexpected {type(error).__name__}: {error}` otherwise.
   - **Scope of the catch**: these `except` clauses must not catch `KeyboardInterrupt`, and must sit outside the existing `except (StorageError, WalletError)` handler so a summary-read `StorageReadError` isn't mapped to feature 001's message.
   - **Result**: return `RunResult(..., exported=exported, summaries=summaries)`.
 - [ ] T014 [US1] Print the summaries in `src/monero_income/cli.py` `main_command` (contracts/cli.md):
   - **Catch**: `except SummaryError as error:` before `except RunError`. Print the price-stopped warning as now, then `_summary_lines(error.result)`, then `_fail(str(error), 1)`.
-  - **Render first**: after a successful `run()`, `width = _terminal_width()`, then compute `text = summary_text(result, width, styled=width is not None)` **before printing anything**. On `SummaryError`, print the warning and `_summary_lines(result)`, then `_fail(str(error), 1)`.
+  - **Render first**: after a successful `run()`, `width = _terminal_width()`, then compute `text = summary_text(result, result.exported.path, width, styled=width is not None)` if `result.exported is not None`, else `text = ""`, **before printing anything**. `run()` always sets `exported` when it sets `summaries`, so the `else` branch shows no summaries rather than raising. On `SummaryError`, print the warning and `_summary_lines(result)`, then `_fail(str(error), 1)`.
   - **Print**: otherwise print the warning, the `_summary_lines(result)` lines, and, if `text`, `""` followed by `typer.echo(text, nl=False)`. The CLI never creates a rich `Console` for stdout itself, so a failure can't leave part of a table on screen.
   - **`_terminal_width() -> int | None`**: returns `None` for now (US3 fills it in).
 
@@ -298,8 +301,8 @@ neither; the totals show `*?`; the legend has both lines.
   - **`marks`**: `""`, `"*"`, `"?"`, `"*?"` for the four flag combinations;
   - **Mark suffix**: in a table where any row has a mark, every USD cell is `format_usd(...) + " " + marks.ljust(longest)`, blank-padded for unmarked rows, so the rendered figures stay right-aligned. The table has no fourth column;
   - **No marks**: a table with no marks renders exactly as in US1;
-  - **Legend**: after the layout, `Text("")` and then only the legend lines for marks that appear, `*` first, with the exact texts from contracts/summaries.md; there is no legend when no mark appears (US2-6).
-- [ ] T018 [P] [US2] Add `tests/golden/summaries_sequential.txt`: `render_text(..., None, styled=False)` of the contract's example records (contracts/summaries.md, Example), today 2026-10-27, NY. Its tables are the contract's side-by-side tables stacked with a blank line between them, each with its centered title, then the legend. Add it to `tests/integration/test_summaries_golden.py`, comparing with trailing spaces stripped per line.
+  - **Legend**: after the layout, `Text("")` and then only the legend lines for marks that appear, `*` first, with the exact texts from contracts/summaries.md; there is no legend when no mark appears (US2-6). With `width=None`, each legend line is one rendered line, not wrapped, and the needed width is at least 54.
+- [ ] T018 [P] [US2] Add `tests/golden/summaries_sequential.txt`: `render_text(..., None, styled=False)` of the contract's example records (contracts/summaries.md, Example), today 2026-10-27, NY. It is the contract's one-after-another example. Add it to `tests/integration/test_summaries_golden.py`, comparing with trailing spaces stripped per line.
 ### Implementation for User Story 2
 
 - [ ] T019 [US2] In `src/monero_income/orchestration/summary.py` `summarize`, set `provisional` when any counted record has `price_status == "provisional"` and `unpriced` when any counted record has no price. Set the total's flags to the `any` of the periods' flags.
@@ -307,7 +310,7 @@ neither; the totals show `*?`; the legend has both lines.
   - add `marks(figures: PeriodFigures) -> str` (`"*"` if provisional, then `"?"` if unpriced);
   - in `summary_table`, append the mark suffix to the USD cell text as in T017;
   - add `LEGEND: dict[str, str]` with the contract's two lines;
-  - in `summary_renderable`, append `Text("")` and one `Text(line)` per mark that appears, in `"*?"` order, to either layout.
+  - in `summary_renderable`, append `Text("")` and one `Text(line)` per mark that appears, in `"*?"` order, to either layout, and return `max(layout width, longest legend line shown)` as the needed width. The `*` line is 54 characters, wider than the one-after-another layout's 50, and rich would wrap it at 50.
 **Checkpoint**: US1 and US2 work; both golden files pass.
 
 ---
@@ -398,7 +401,6 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T034 [P] Add a SC-007 case to `tests/integration/test_performance.py`. With 100,000 synthetic records spread over five years, `build_summaries` followed by `render_text(…, None, styled=False)` takes under 1 second, measured with `time.perf_counter()`. Use prices with 17 decimal places so `exact_sum` is exercised.
 - [ ] T035 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers `orchestration/summary.py` and `orchestration/summary_format.py` (its `orchestration/*.py` glob), and that the new messages say "transaction(s)" (FR-021).
 - [ ] T036 [P] Update `README.md`:
   - **Usage intro**: replace "Summaries come in a later feature." with a sentence saying every run ends with weekly, monthly and annual income summaries.
@@ -427,11 +429,11 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
 - **Phase 2**: T002 and T004 in parallel; T003 after T002 (it imports the types).
 - **US1 (Phase 3)**:
   - Tests T005–T010 in parallel first.
-  - Then T011, then T012 (it imports `summary.py`'s types), then T013 (needs T011 and T012's `summary_failure_message`), T014 (needs T012 and T013), and T015.
+  - Then T011, then T012 (it imports `summary.py`'s types), then T013 (needs T011 and T012; `summary_failure_message` comes from T002), T014 (needs T012 and T013), and T015.
 - **US2 (Phase 4)**: depends on US1's T011/T012. T016–T018 in parallel, then T019 and T020 (different files, so they can run in parallel).
 - **US3 (Phase 5)**: depends on US1's T012 and T014. It is independent of US2, except that its golden file includes marks, so do it after US2 or accept the golden test failing until US2 lands. T021–T023 in parallel, then T024 and T025 (different files).
 - **US4 (Phase 6)**: depends on Phase 2 and US1's T013. It is independent of US2 and US3. T026–T029 in parallel; T030 and T031 in parallel; then T032 (needs both) and T033.
-- **Polish**: after the desired stories. T034–T036 in parallel, then T037, then T038.
+- **Polish**: after the desired stories. T035 and T036 in parallel, then T037, then T038.
 
 ### Parallel Opportunities
 

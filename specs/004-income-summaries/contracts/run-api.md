@@ -47,9 +47,10 @@ def render_text(summaries: IncomeSummaries, width: int | None, styled: bool) -> 
 
     Raises SummaryDataError on a malformed IncomeSummaries."""
 
-def summary_text(result: RunResult, width: int | None, styled: bool) -> str:
+def summary_text(result: RunResult, export_path: Path, width: int | None, styled: bool) -> str:
     """The guarded rendering stage: render_text(result.summaries, width, styled), complete;
-    "" when result.summaries is None.
+    "" when result.summaries is None. export_path is the export the run wrote (the CLI
+    passes result.exported.path); the error message names it.
 
     Any Exception becomes SummaryError(message, result=result)."""
 ```

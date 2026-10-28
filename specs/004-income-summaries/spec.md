@@ -45,6 +45,12 @@ recorded transactions, a single message replaces the summaries."
   displaying them. It is a deliberate safeguard: the whole summary step is guarded so any
   failure becomes a clean error, even though such failures are not expected in normal use.
 
+### Session 2026-10-28
+
+- Q: Is there a time limit on showing the summaries? → A: No. Display time is not a
+  requirement for this personal tool at its current scale, so the success criterion for it
+  (formerly SC-007) was removed.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - See recent income by week, month, and year after each run (Priority: P1)
@@ -345,8 +351,6 @@ the file's setting still there and the command-line option set to UTC (it counts
   periods, figures, marks, and legend.
 - **SC-006**: On a terminal wide enough for the side-by-side layout, all three summaries fit
   within 40 lines.
-- **SC-007**: With 100,000 recorded transactions, showing the summaries adds less than one
-  second to the run.
 
 ## Assumptions
 
@@ -375,6 +379,10 @@ the file's setting still there and the command-line option set to UTC (it counts
   is locked by golden-file tests created in this feature, for both layouts.
 - **No new data**: the summaries use only the recorded transactions and prices; no schema
   change or new price lookups.
+- **Agreement with the export**: the export and the summaries agree (FR-019) on the
+  assumption that no other process writes to the database during a run. The tool runs one
+  instance at a time (feature 001's edge case "Second run started while one is in
+  progress").
 - **Out of scope**: the monthly summary CSV, configurable ranges (number of weeks, months, or
   years), other currencies, choosing which summaries to show, colors, and an option to hide
   the summaries.

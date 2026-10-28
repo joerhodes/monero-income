@@ -75,6 +75,7 @@ the process's local time zone rules, when `zone` is `None` (research R2).
 | `summarize` | `(records, labels, label_of, title)` → `Summary` | One pass. Records whose label isn't in `labels` are skipped |
 | `check_record` | `ExportRecord` → `None` | Raises `SummaryDataError` naming the txid unless the record meets the invariants in research R10 |
 | `build_summaries` | `(Sequence[ExportRecord], today: date, zone)` → `IncomeSummaries` | Checks every record, then builds the three summaries plus the record count |
+| `summary_failure_message` | `(reason: str, export_path: Path)` → `str` | The contracts/cli.md FR-018 message. Here rather than in `summary_format.py`, which imports `run.py`, so that `run.py` and `summary_format.py` can both use it without importing each other |
 
 `usd_value` (feature 002, `orchestration/valuation.py`) is reused unchanged.
 
@@ -92,9 +93,9 @@ no terminal and no file I/O.
 | `summary_table` | `Summary` → `rich.table.Table` | `Table(title=..., box=box.ROUNDED, header_style="bold")`; columns Period (left), XMR and USD (right), `no_wrap`; `Text` cells; `add_section()` before `Total`; marks padded into the USD cell ([contracts/summaries.md](contracts/summaries.md)) |
 | `table_width` | `Table` → `int` | `Measurement.get(...).maximum` on a probe `Console(width=10_000)` |
 | `side_by_side_width` | `IncomeSummaries` → `int` | weekly + 4 + max(monthly, annual) |
-| `summary_renderable` | `(IncomeSummaries, int \| None)` → `(RenderableType, int)` | The chosen layout (grid or stacked `Group`) plus legend, or `NO_TRANSACTIONS`, and the width it needs |
+| `summary_renderable` | `(IncomeSummaries, int \| None)` → `(RenderableType, int)` | The chosen layout (grid or stacked `Group`) plus legend, or `NO_TRANSACTIONS`, and the width it needs: the layout's width or the longest legend line shown, whichever is larger |
 | `render_text` | `(IncomeSummaries, int \| None, bool)` → `str` | `check_summaries`, then print `summary_renderable` into `Console(file=StringIO(), width=max(width or 0, needed), color_system="standard" if styled else None, force_terminal=styled, highlight=False, markup=False, emoji=False, legacy_windows=False)` and return the text |
-| `summary_text` | `(RunResult, int \| None, bool)` → `str` | The guarded rendering stage: the complete text, or `SummaryError` (research R10) |
+| `summary_text` | `(RunResult, Path, int \| None, bool)` → `str` | The guarded rendering stage: the complete text, or `SummaryError` (research R10). The `Path` is the export the run wrote, passed in by the CLI, and is named in the error message |
 | `LEGEND`, `NO_TRANSACTIONS` | constants | Texts from the contract |
 
 ## Primitives

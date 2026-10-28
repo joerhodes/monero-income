@@ -25,7 +25,7 @@ to make. Each lists the decision, why, and what else was considered.
 - Sharing one snapshot keeps FR-019 without sharing a single failure point with the export.
   A read failure in the export's own read still fails the run before the export, as in
   feature 003 (FR-002).
-- Reading twice costs one more query. 100,000 rows are well within SC-007.
+- Reading twice costs one more query.
 
 **Note on stored prices**: a stored price that doesn't parse is rejected by the export's read
 first, so in a real database it fails the run under feature 003's rules (no export written).
@@ -188,7 +188,8 @@ installed as Typer's dependency, at 15.0.0 in `uv.lock`.
   in-memory `Console` and returns the captured text. The settings that make the output
   deterministic are:
   - `file=io.StringIO()`;
-  - `width=max(width or 0, needed width)`;
+  - `width=max(width or 0, needed width)`, where the needed width is the layout's width or
+    the longest legend line shown, whichever is larger;
   - `color_system="standard" if styled else None`;
   - `force_terminal=styled`;
   - `highlight=False`, `markup=False`, `emoji=False`, `legacy_windows=False`.
@@ -220,8 +221,9 @@ installed as Typer's dependency, at 15.0.0 in `uv.lock`.
   rows, rule, total, bottom border). With the legend, the prototype output is 36 lines
   (SC-006: ≤ 40).
 - **Width**: the contract example needs 103 columns side by side (prototype: side by side at
-  103, one after another at 102). One after another, it needs 50. The borders and padding add
-  about 6 columns per table compared with plain text, so a typical wallet needs about 95
+  103, one after another at 102). One after another, it needs 54: the tables need 50, but the
+  legend's `*` line is 54 characters, and rich would wrap it at 50. The borders and padding
+  add about 6 columns per table compared with plain text, so a typical wallet needs about 95
   columns, and an 80-column terminal gets the one-after-another layout.
 - **Layers**: orchestration builds and renders (pure), and the CLI measures the terminal and
   prints text (presentation, constitution II). Both layers may import rich; it is a
@@ -243,7 +245,7 @@ installed as Typer's dependency, at 15.0.0 in `uv.lock`.
 - `RunResult` gains `summaries: IncomeSummaries | None = None`. Every successful `run()` sets
   it, and `None` remains only as the default, so existing test constructions keep working.
 - `IncomeSummaries` holds three `Summary` values and `transactions`, the count of all recorded
-  transactions. When `transactions` is 0, the CLI prints the no-transactions message
+  transactions. When `transactions` is 0, the renderer shows the no-transactions message
   (FR-016).
 - The figures are exact `Decimal`s and `int`s. Formatting happens in the renderer.
 
@@ -283,7 +285,7 @@ clean error. The run prints features 001–003's lines (including the export lin
 |-------|-------|------------------|
 | Reading | `run()`: `summary_reader(conn)` | `StorageReadError`, and any other `Exception` |
 | Computing | `run()`: `build_summaries(records, today, zone)` | `SummaryDataError` (invariants below), and any other `Exception` |
-| Rendering | `summary_text(result, width, styled)` in orchestration, called by the CLI | `SummaryDataError`, and any other `Exception` (including rich's) |
+| Rendering | `summary_text(result, export_path, width, styled)` in orchestration, called by the CLI | `SummaryDataError`, and any other `Exception` (including rich's) |
 
 - **Invariants**: `build_summaries` checks every record and raises `SummaryDataError` naming
   the transaction id. The checks are:
