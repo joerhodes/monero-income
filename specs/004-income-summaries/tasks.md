@@ -58,7 +58,7 @@ on its own.
 
 **Purpose**: Confirm the starting point
 
-- [ ] T001 On branch `004-income-summaries`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. Confirm `pyproject.toml` lists `rich>=15.0.0` under `dependencies` and `uv.lock` resolves rich 15.0.0 (plan.md). It is already declared; it was installed before as Typer's dependency. No other new dependencies.
+- [X] T001 On branch `004-income-summaries`, run `uv sync` and the five gates (`uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run lint-imports`, `uv run pytest`), and confirm they pass before any change. Confirm `pyproject.toml` lists `rich>=15.0.0` under `dependencies` and `uv.lock` resolves rich 15.0.0 (plan.md). It is already declared; it was installed before as Typer's dependency. No other new dependencies.
 
 ---
 
@@ -68,19 +68,19 @@ on its own.
 
 **⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
-- [ ] T002 [P] Create `src/monero_income/orchestration/summary.py`. Module docstring: "Pure aggregation of recorded transactions into weekly, monthly and annual income summaries. No I/O." Add these, all frozen dataclasses with field comments as in contracts/run-api.md:
+- [X] T002 [P] Create `src/monero_income/orchestration/summary.py`. Module docstring: "Pure aggregation of recorded transactions into weekly, monthly and annual income summaries. No I/O." Add these, all frozen dataclasses with field comments as in contracts/run-api.md:
   - **`SummaryDataError(Exception)`**: docstring "A record or summary breaks an invariant (FR-018)." Its message names the transaction id or the field, never amounts or secrets.
   - **`PeriodFigures`**: `label: str`, `piconero: int`, `usd: Decimal` (`# exact, unrounded; priced transactions only`), `provisional: bool`, `unpriced: bool`.
   - **`Summary`**: `title: str`, `periods: tuple[PeriodFigures, ...]`, `total: PeriodFigures`.
   - **`IncomeSummaries`**: `weekly: Summary`, `monthly: Summary`, `annual: Summary`, `transactions: int` (`# all recorded transactions; 0 → the message`).
   - **Constants**: `WEEKLY_TITLE = "Weekly Summary"`, `MONTHLY_TITLE = "Monthly Summary"`, `ANNUAL_TITLE = "Annual Summary"`, `WEEKS = 26`, `MONTHS = 12`, `YEARS = 4`, `TOTAL_LABEL = "Total"`.
   - **`summary_failure_message(reason: str, export_path: Path) -> str`**: `f"cannot show the income summaries: {reason}. The export was written to {export_path}; recorded transactions and prices were kept."`. It lives here, not in `summary_format.py`, because both `summary_format.py` (T012) and `run.py` (T013) use it, and `summary_format.py` imports `run.py`. Putting it in `summary_format.py` would make the two import each other.
-- [ ] T003 In `src/monero_income/orchestration/run.py`:
+- [X] T003 In `src/monero_income/orchestration/run.py`:
   - Add `summaries: IncomeSummaries | None = None` as the last field of `RunResult`, commented `# set by every successful run()`.
   - Add `class SummaryError(RunError)`, docstring "The summary step failed after the export was written (FR-018)." Its `__init__(self, message: str, result: RunResult)` stores `self.result`.
 
   Re-export `IncomeSummaries`, `Summary`, `PeriodFigures` and `SummaryError` from `src/monero_income/orchestration/__init__.py` and add them to `__all__`. Existing `RunResult(...)` constructions must keep compiling unchanged.
-- [ ] T004 [P] Add a `local_tz` fixture to `tests/conftest.py`. It is not autouse: it returns a function `set_tz(name: str) -> None` that sets `TZ` with `monkeypatch.setenv` and calls `time.tzset()`. On teardown it calls `time.tzset()` again after monkeypatch restores `TZ`, so later tests see the original zone (research R2). Add a one-line test of the fixture to `tests/unit/test_summary.py` (create the file): with `set_tz("America/New_York")`, `datetime(2026, 11, 1, 3, 30, tzinfo=UTC).astimezone(None).date() == date(2026, 10, 31)`.
+- [X] T004 [P] Add a `local_tz` fixture to `tests/conftest.py`. It is not autouse: it returns a function `set_tz(name: str) -> None` that sets `TZ` with `monkeypatch.setenv` and calls `time.tzset()`. On teardown it calls `time.tzset()` again after monkeypatch restores `TZ`, so later tests see the original zone (research R2). Add a one-line test of the fixture to `tests/unit/test_summary.py` (create the file): with `set_tz("America/New_York")`, `datetime(2026, 11, 1, 3, 30, tzinfo=UTC).astimezone(None).date() == date(2026, 10, 31)`.
 
 **Checkpoint**: All existing tests still pass; `uv run mypy` and `uv run lint-imports` are clean.
 

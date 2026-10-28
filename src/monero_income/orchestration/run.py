@@ -23,6 +23,7 @@ from monero_income.orchestration.settings import (
     default_config_path,
     resolve_settings,
 )
+from monero_income.orchestration.summary import IncomeSummaries
 from monero_income.orchestration.sync import sync
 from monero_income.orchestration.valuation import default_delay
 from monero_income.primitives.config_file import read_config
@@ -58,6 +59,15 @@ class RunResult:
     imported: ImportSummary | None = None  # None when --import-prices wasn't given
     pricing: PricingSummary = field(default_factory=PricingSummary)
     exported: ExportSummary | None = None  # set by every successful run()
+    summaries: IncomeSummaries | None = None  # set by every successful run()
+
+
+class SummaryError(RunError):
+    """The summary step failed after the export was written (FR-018)."""
+
+    def __init__(self, message: str, result: RunResult) -> None:
+        super().__init__(message)
+        self.result = result
 
 
 def make_wallet(settings: Settings) -> WalletRpc:
