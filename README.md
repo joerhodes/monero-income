@@ -81,7 +81,7 @@ project would make new features and bug fixes go much more smoothly.
 Every run records the wallet's incoming transactions in a local SQLite
 database (feature 001), then values them in USD using daily prices from
 CoinGecko (feature 002), and writes them all to a CSV export (feature 003).
-Summaries come in a later feature.
+It ends by showing weekly, monthly and annual income summaries (feature 004).
 
 ### Install
 
@@ -105,6 +105,7 @@ username = "monero"                              # if the wallet RPC uses --rpc-
 password = "secret"                              # config file only; never on the command line
 db_path  = "~/.local/share/monero-income/xmr.db" # default shown
 reports_path = "~/reports"                       # default shown; where the export is written
+timezone = "America/New_York"   # optional; default: this machine's time zone
 
 # USD prices (CoinGecko). A key is optional; a free Demo key allows faster pricing.
 coingecko_api_key      = "CG-..."   # optional
@@ -134,7 +135,7 @@ with a key, 6 seconds without. `min_request_delay` overrides both.
 
 ```sh
 monero-income [--rpc-url URL] [--username NAME] [--db-path PATH] [--reports-path DIR]
-              [--import-prices CSV]
+              [--timezone ZONE] [--import-prices CSV]
               [--coingecko-api-key KEY] [--coingecko-api-key-type demo|pro]
 ```
 
@@ -142,8 +143,8 @@ Every run starts with a sync, which records new incoming transactions from
 account 0 of the wallet. It then looks up the USD price for each UTC day that
 has transactions but no final price, oldest day first. Each transaction is
 valued at its day's price, exactly; rounding happens only on output. The run
-prints the sync line, then whichever pricing lines apply, and last the export
-line:
+prints the sync line, then whichever pricing lines apply, then the export
+line, and last the income summaries (see [The summaries](#the-summaries)):
 
 ```text
 Recorded 3 new transactions.
@@ -174,6 +175,59 @@ along with the file.
 The reports directory must be on a filesystem that supports file locking.
 Some network shares don't, and the run fails there with a message saying so;
 write the export to a local directory and copy it to the share.
+
+#### The summaries
+
+After the export line and a blank line, every successful run shows three
+tables:
+
+- **Weekly**: the last 26 ISO weeks, labeled like `2026-W44`.
+- **Monthly**: the last 12 calendar months, labeled like `2026-10`.
+- **Annual**: the last 4 calendar years, labeled like `2026`.
+
+Each range ends with the current, partial period, oldest first, and periods
+with no income show zeros. Each table has Period, XMR and USD columns and a
+Total row for the periods shown. USD figures are summed exactly and rounded
+once to the cent. With no transactions recorded yet, a single line,
+`No transactions to summarize yet.`, replaces the tables.
+
+A transaction's period follows its date in this machine's time zone, or in the
+zone set by `--timezone` or `timezone` (an IANA name such as
+`America/New_York`). Prices still come from the transaction's UTC day, and the
+export stays in UTC.
+
+Some USD figures carry marks, explained by a legend under the tables:
+
+- `*`: the figure includes a provisional price, which may still change.
+- `?`: the figure leaves out transactions that have no price yet. Their XMR is
+  still counted.
+
+On a terminal wide enough for both (about 103 columns), the weekly table is on
+the left, with the monthly and annual tables stacked on the right. Otherwise,
+and whenever the output is redirected to a file or a pipe, the tables follow
+one another: weekly, monthly, then annual. Redirected output is plain text.
+An excerpt:
+
+```text
+                 Annual Summary
+╭────────┬────────────────────┬────────────────╮
+│ Period │                XMR │            USD │
+├────────┼────────────────────┼────────────────┤
+│ 2023   │     0.000000000000 │          $0.00 │
+│ 2024   │     0.000000000000 │          $0.00 │
+│ 2025   │     1.500000000000 │        $225.00 │
+│ 2026   │ 1,237.481000000000 │ $188,436.70 *? │
+├────────┼────────────────────┼────────────────┤
+│ Total  │ 1,238.981000000000 │ $188,661.70 *? │
+╰────────┴────────────────────┴────────────────╯
+
+* includes a provisional price, which may still change
+? leaves out transactions that have no price yet
+```
+
+If the summaries can't be shown, the run prints one `Error: …` line and exits
+with status 1, but the export has already been written and nothing recorded
+is lost.
 
 #### Provisional and final prices
 

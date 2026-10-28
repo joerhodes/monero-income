@@ -29,6 +29,8 @@ def test_scan_covers_the_user_facing_modules() -> None:
     assert {"cli.py", "run.py", "settings.py", "sync.py"} <= names
     # Feature 002's user-facing wording lives here too.
     assert {"pricing.py", "price_import.py", "valuation.py"} <= names
+    # And feature 004's: the summaries and their error messages.
+    assert {"summary.py", "summary_format.py"} <= names
 
 
 def test_no_user_facing_string_says_transfer() -> None:

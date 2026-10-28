@@ -401,8 +401,8 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
 
 ## Phase 7: Polish & Cross-Cutting Concerns
 
-- [ ] T035 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers `orchestration/summary.py` and `orchestration/summary_format.py` (its `orchestration/*.py` glob), and that the new messages say "transaction(s)" (FR-021).
-- [ ] T036 [P] Update `README.md`:
+- [X] T035 [P] Confirm the "transfer" scan in `tests/cli/test_messages.py` covers `orchestration/summary.py` and `orchestration/summary_format.py` (its `orchestration/*.py` glob), and that the new messages say "transaction(s)" (FR-021).
+- [X] T036 [P] Update `README.md`:
   - **Usage intro**: replace "Summaries come in a later feature." with a sentence saying every run ends with weekly, monthly and annual income summaries.
   - **Configure**: add `timezone = "America/New_York"   # optional; default: this machine's time zone` to the config example.
   - **Run**: add `[--timezone ZONE]` to the usage block after `[--reports-path DIR]`.
@@ -416,7 +416,7 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
   - **Status table**: set 003's row to `Done` if it isn't already, and replace the `[004 …] Planned` row with `[004 Income summaries](specs/004-income-summaries/) | In Progress | Weekly, monthly and annual summaries on screen`.
 
   Don't change the Intro or "How I used AI" sections.
-- [ ] T037 Run all five gates and fix failures until they pass with coverage ≥ 90%.
+- [X] T037 Run all five gates and fix failures until they pass with coverage ≥ 90%.
 - [ ] T038 Run the manual checks in `specs/004-income-summaries/quickstart.md` against the real wallet and record the results in the PR description. Don't commit any output, database, or config file.
 
 ---
