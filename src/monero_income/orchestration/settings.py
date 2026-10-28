@@ -34,6 +34,7 @@ STRING_KEYS = (
     "coingecko_api_key",
     "coingecko_api_key_type",
     "reports_path",
+    "timezone",
 )
 NUMBER_KEYS = ("min_request_delay",)
 KNOWN_KEYS = STRING_KEYS + NUMBER_KEYS
@@ -54,6 +55,7 @@ class CliOptions:
     coingecko_api_key: str | None = None
     coingecko_api_key_type: str | None = None
     reports_path: str | None = None
+    timezone: str | None = None
 
 
 @dataclass(frozen=True)
@@ -69,6 +71,7 @@ class Settings:
     min_request_delay: Decimal | None = None  # seconds; None means the default for the key
     import_prices: Path | None = None
     reports_path: Path = Path(DEFAULT_REPORTS_PATH)  # placeholder; resolve_settings sets it
+    timezone: str | None = None  # None means the machine's local zone; loaded by run()
 
 
 def default_config_path() -> Path:
@@ -118,6 +121,11 @@ def resolve_settings(
         raise RunError("invalid reports_path: must not be empty")
     reports_path = picked_reports_path if picked_reports_path is not None else DEFAULT_REPORTS_PATH
 
+    # Same check as reports_path; the zone itself is loaded by run(), so this stays pure.
+    timezone = _pick(options.timezone, file_values["timezone"])
+    if timezone is not None and not timezone.strip():
+        raise RunError("invalid timezone: must not be empty")
+
     api_key = _pick(options.coingecko_api_key, file_values["coingecko_api_key"])
     key_type_text = _pick(options.coingecko_api_key_type, file_values["coingecko_api_key_type"])
     api_key_type: KeyType | None = None
@@ -158,6 +166,7 @@ def resolve_settings(
         min_request_delay=_request_delay(values, config_path),
         import_prices=import_prices,
         reports_path=Path(reports_path).expanduser(),
+        timezone=timezone,
     )
     return settings, warnings
 

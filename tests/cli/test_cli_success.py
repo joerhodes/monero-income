@@ -83,6 +83,8 @@ def test_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch, tmp_path:
             db_path,
             "--reports-path",
             "/x/y",
+            "--timezone",
+            "Europe/Berlin",
         ],
     )
 
@@ -93,6 +95,7 @@ def test_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch, tmp_path:
             username="monero",
             db_path=db_path,
             reports_path="/x/y",
+            timezone="Europe/Berlin",
         )
     ]
 
@@ -104,6 +107,7 @@ def test_no_options_means_all_none(monkeypatch: pytest.MonkeyPatch) -> None:
     runner.invoke(cli.app, [])
 
     assert fake.options == [CliOptions()]
+    assert fake.options[0].timezone is None
 
 
 def test_help_has_no_password_option_and_no_subcommands() -> None:

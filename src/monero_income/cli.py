@@ -50,6 +50,14 @@ def main_command(
             "--reports-path", help="Directory for the xmr_income.csv export (default ~/reports)."
         ),
     ] = None,
+    timezone: Annotated[
+        str | None,
+        typer.Option(
+            "--timezone",
+            help="Time zone for the income summaries, e.g. America/New_York"
+            " (default: this machine's).",
+        ),
+    ] = None,
     import_prices: Annotated[
         str | None,
         typer.Option(
@@ -75,6 +83,7 @@ def main_command(
         username=username,
         db_path=db_path,
         reports_path=reports_path,
+        timezone=timezone,
         import_prices=import_prices,
         coingecko_api_key=coingecko_api_key,
         coingecko_api_key_type=coingecko_api_key_type,

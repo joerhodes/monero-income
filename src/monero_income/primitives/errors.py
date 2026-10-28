@@ -102,3 +102,7 @@ class ExportLockUnsupportedError(ExportWriteError):
             "the filesystem doesn't support file locking (some network shares don't);"
             " write the export to a local directory and copy it"
         )
+
+
+class UnknownTimeZoneError(Exception):
+    """The time zone name isn't in the system's time zone database."""

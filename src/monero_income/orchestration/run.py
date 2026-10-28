@@ -42,6 +42,7 @@ from monero_income.primitives.errors import (
     StorageError,
     StorageReadError,
     StorageWriteError,
+    UnknownTimeZoneError,
     WalletError,
     WalletLoginError,
     WalletResponseError,
@@ -51,6 +52,7 @@ from monero_income.primitives.errors import (
 from monero_income.primitives.export_db import export_records
 from monero_income.primitives.models import ExportRecord
 from monero_income.primitives.price_source import CoinGeckoPriceSource, PriceSource
+from monero_income.primitives.timezones import load_zone
 from monero_income.primitives.wallet_rpc import HttpWalletRpc, WalletRpc
 
 # Resolved at call time, so tests can replace them (contracts/run-api.md).
@@ -124,7 +126,13 @@ def run(
     settings, warnings = resolve_settings(options, raw, path)
     for warning in warnings:
         reporter.warning(warning)
-    zone: ZoneInfo | None = None  # the machine's local zone
+    # Checked before anything is opened or synced (FR-006); None is the machine's local zone.
+    zone: ZoneInfo | None = None
+    if settings.timezone is not None:
+        try:
+            zone = load_zone(settings.timezone)
+        except UnknownTimeZoneError as error:
+            raise RunError(f"invalid timezone: unknown time zone '{settings.timezone}'") from error
     today = now().astimezone(zone).date()
 
     try:

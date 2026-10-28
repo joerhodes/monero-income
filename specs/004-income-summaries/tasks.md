@@ -367,33 +367,33 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
 
 ### Tests for User Story 4 ⚠️ (write first, confirm they fail)
 
-- [ ] T026 [P] [US4] Add to `tests/unit/test_settings.py` (contracts/config.md):
+- [X] T026 [P] [US4] Add to `tests/unit/test_settings.py` (contracts/config.md):
   - no setting gives `Settings.timezone is None`;
   - the file value is used;
   - the option overrides the file;
   - `""` and `"  "` from the option or the file → `invalid timezone: must not be empty`, checked before the default;
   - `timezone = 5` in the file → `invalid timezone in <path>: expected a string`;
   - `timezone` in the file produces no unknown-key warning.
-- [ ] T027 [P] [US4] Create `tests/adapters/test_timezones.py` for `load_zone`:
+- [X] T027 [P] [US4] Create `tests/adapters/test_timezones.py` for `load_zone`:
   - `"America/New_York"` and `"UTC"` return a `ZoneInfo` with that key;
   - each of these raises `UnknownTimeZoneError` whose message is the name: `"Mars/Olympus_Mons"`, `"America"` (a directory), `"america/new_york"` (wrong case, rejected on every platform), `"../etc/passwd"`, and `"/etc/passwd"`.
-- [ ] T028 [P] [US4] Create `tests/integration/test_summary_timezone.py` with `run()` cases:
+- [X] T028 [P] [US4] Create `tests/integration/test_summary_timezone.py` with `run()` cases:
   - the Independent Test above (US4-1 to US4-3), using `local_tz("UTC")` and a `FakeClock` at 2026-11-02;
   - `--timezone Mars/Olympus_Mons` raises `RunError("invalid timezone: unknown time zone 'Mars/Olympus_Mons'")` before syncing: the fake wallet records no calls, no database file is created, and no export is written (FR-006, US4-4);
   - a configured zone also decides "today": with the clock at `2026-11-01T03:30:00Z` and NY, the last monthly label is `2026-10`.
-- [ ] T029 [P] [US4] Add to `tests/cli/test_cli_success.py`: `--timezone Europe/Berlin` maps onto `CliOptions(timezone="Europe/Berlin")`. Extend `test_options_map_onto_cli_options`; omitting the option gives `None`.
+- [X] T029 [P] [US4] Add to `tests/cli/test_cli_success.py`: `--timezone Europe/Berlin` maps onto `CliOptions(timezone="Europe/Berlin")`. Extend `test_options_map_onto_cli_options`; omitting the option gives `None`.
 
 ### Implementation for User Story 4
 
-- [ ] T030 [P] [US4] Add `UnknownTimeZoneError(Exception)` to `src/monero_income/primitives/errors.py`, docstring "The time zone name isn't in the system's time zone database." Then create `src/monero_income/primitives/timezones.py` with `load_zone(name: str) -> ZoneInfo`. It returns `ZoneInfo(name)` only if `name in zoneinfo.available_timezones()`. Otherwise, or on `ZoneInfoNotFoundError`, `ValueError` or `OSError`, it raises `UnknownTimeZoneError(name)` (research R2).
-- [ ] T031 [US4] Add the `timezone` setting to `src/monero_income/orchestration/settings.py` (contracts/config.md):
+- [X] T030 [P] [US4] Add `UnknownTimeZoneError(Exception)` to `src/monero_income/primitives/errors.py`, docstring "The time zone name isn't in the system's time zone database." Then create `src/monero_income/primitives/timezones.py` with `load_zone(name: str) -> ZoneInfo`. It returns `ZoneInfo(name)` only if `name in zoneinfo.available_timezones()`. Otherwise, or on `ZoneInfoNotFoundError`, `ValueError` or `OSError`, it raises `UnknownTimeZoneError(name)` (research R2).
+- [X] T031 [US4] Add the `timezone` setting to `src/monero_income/orchestration/settings.py` (contracts/config.md):
   - add `"timezone"` to `STRING_KEYS`;
   - add `timezone: str | None = None` to `CliOptions` and `Settings`;
   - in `resolve_settings`, `picked = _pick(options.timezone, file_values["timezone"])`; if `picked is not None and not picked.strip()`, raise `RunError("invalid timezone: must not be empty")`; set `Settings.timezone=picked`.
 
   Same pattern as `reports_path`, and no zone loading here (it stays pure).
-- [ ] T032 [US4] In `src/monero_income/orchestration/run.py`, right after `resolve_settings` and before `connect`, set `zone = load_zone(settings.timezone) if settings.timezone is not None else None`. Map `UnknownTimeZoneError` to `RunError(f"invalid timezone: unknown time zone '{settings.timezone}'")`. Remove T013's temporary `zone = None`.
-- [ ] T033 [US4] Add the `--timezone` option to `main_command` in `src/monero_income/cli.py`: `timezone: Annotated[str | None, typer.Option("--timezone", help="Time zone for the income summaries, e.g. America/New_York (default: this machine's).")] = None`. Place it after `--reports-path`, matching contracts/cli.md's usage block, and pass it into `CliOptions(timezone=timezone)`.
+- [X] T032 [US4] In `src/monero_income/orchestration/run.py`, right after `resolve_settings` and before `connect`, set `zone = load_zone(settings.timezone) if settings.timezone is not None else None`. Map `UnknownTimeZoneError` to `RunError(f"invalid timezone: unknown time zone '{settings.timezone}'")`. Remove T013's temporary `zone = None`.
+- [X] T033 [US4] Add the `--timezone` option to `main_command` in `src/monero_income/cli.py`: `timezone: Annotated[str | None, typer.Option("--timezone", help="Time zone for the income summaries, e.g. America/New_York (default: this machine's).")] = None`. Place it after `--reports-path`, matching contracts/cli.md's usage block, and pass it into `CliOptions(timezone=timezone)`.
 
 **Checkpoint**: All four stories work; the full suite is green.
 
