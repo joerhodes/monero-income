@@ -7,6 +7,7 @@ from monero_income.orchestration.pricing import PricingSummary, StopReason
 from monero_income.orchestration.run import Reporter, RunResult, SummaryError, run
 from monero_income.orchestration.settings import CliOptions
 from monero_income.orchestration.summary import IncomeSummaries, PeriodFigures, Summary
+from monero_income.orchestration.summary_format import render_text, summary_text
 
 __all__ = [
     "CliOptions",
@@ -21,5 +22,7 @@ __all__ = [
     "StopReason",
     "Summary",
     "SummaryError",
+    "render_text",
     "run",
+    "summary_text",
 ]

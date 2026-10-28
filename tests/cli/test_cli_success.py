@@ -1,6 +1,9 @@
 """The thin CLI: options in, one line out. run() is replaced; nothing real runs."""
 
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from typer.testing import CliRunner
@@ -10,11 +13,15 @@ from monero_income.orchestration import (
     CliOptions,
     ExportSummary,
     ImportSummary,
+    IncomeSummaries,
     PricingSummary,
     Reporter,
     RunResult,
     StopReason,
+    render_text,
 )
+from monero_income.orchestration.summary import build_summaries
+from monero_income.primitives.models import ExportRecord
 
 runner = CliRunner()
 
@@ -26,11 +33,13 @@ class FakeRun:
         pricing: PricingSummary | None = None,
         imported: ImportSummary | None = None,
         exported: ExportSummary | None = None,
+        summaries: IncomeSummaries | None = None,
     ) -> None:
         self.recorded = recorded
         self.pricing = pricing or PricingSummary()
         self.imported = imported
         self.exported = exported
+        self.summaries = summaries  # set together with exported, as run() does
         self.options: list[CliOptions] = []
 
     def __call__(self, options: CliOptions, reporter: Reporter) -> RunResult:
@@ -40,6 +49,7 @@ class FakeRun:
             imported=self.imported,
             pricing=self.pricing,
             exported=self.exported,
+            summaries=self.summaries,
         )
 
 
@@ -327,3 +337,51 @@ def test_no_export_line_without_an_export(monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(cli.app, [])
 
     assert result.stdout == "Recorded 1 new transaction.\n"
+
+
+def summaries(*amounts: int) -> IncomeSummaries:
+    moment = int(datetime(2026, 6, 10, 12, tzinfo=UTC).timestamp())
+    records = [
+        ExportRecord(f"tx-{n}", n, amount, moment, Decimal("152.345"), "final")
+        for n, amount in enumerate(amounts)
+    ]
+    return build_summaries(records, date(2026, 10, 27), ZoneInfo("America/New_York"))
+
+
+def test_summaries_follow_the_export_line_after_a_blank_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shown = summaries(1_234_500_000_000_000)
+    monkeypatch.setattr(
+        cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1), summaries=shown)
+    )
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert result.stdout == (
+        "Recorded 1 new transaction.\n"
+        "Exported 1 transaction to /x/reports/xmr_income.csv.\n"
+        "\n" + render_text(shown, None, styled=False)
+    )
+    assert "\x1b" not in result.stdout
+
+
+def test_no_transactions_prints_the_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        cli, "run", FakeRun(0, exported=ExportSummary(EXPORT_PATH, 0), summaries=summaries())
+    )
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout.splitlines()[-2:] == ["", "No transactions to summarize yet."]
+
+
+def test_without_summaries_the_output_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1)))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout == (
+        "Recorded 1 new transaction.\nExported 1 transaction to /x/reports/xmr_income.csv.\n"
+    )

@@ -101,7 +101,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
 
 ### Tests for User Story 1 ⚠️ (write first, confirm they fail)
 
-- [ ] T005 [P] [US1] Add aggregation tests to `tests/unit/test_summary.py` (functions from T011):
+- [X] T005 [P] [US1] Add aggregation tests to `tests/unit/test_summary.py` (functions from T011):
   - **Labels and ranges**:
     - `week_labels(date(2026, 10, 27))` is `"2026-W19"` … `"2026-W44"` (26 labels);
     - `month_labels` gives `"2025-11"` … `"2026-10"`;
@@ -127,7 +127,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - "`amount_piconero` is a non-negative `int`": a negative amount;
     - "`usd_price` is `None` or a finite `Decimal` > 0": `Decimal("NaN")`, `Decimal("0")`, `Decimal("-1")`;
     - "`price_status` is `None` exactly when the price is": a status without a price, a price without a status, and the status `"settled"`.
-- [ ] T006 [P] [US1] Create `tests/unit/test_summary_format.py` for the US1 parts of T012. Render with `render_text(s, width, styled=False)`, and strip trailing spaces per line before comparing.
+- [X] T006 [P] [US1] Create `tests/unit/test_summary_format.py` for the US1 parts of T012. Render with `render_text(s, width, styled=False)`, and strip trailing spaces per line before comparing.
   - **`format_xmr_grouped`**: `0 → "0.000000000000"`, `1 → "0.000000000001"`, `1_750_000_000_000 → "1.750000000000"`, `1_234_500_000_000_000 → "1,234.500000000000"`, `10**21 → "1,000,000,000.000000000000"`.
   - **`format_usd`**: `Decimal(0) → "$0.00"`, `Decimal("265.001") → "$265.00"`, `Decimal("1234567.895") → "$1,234,567.90"` (half up, FR-010), `Decimal("0.125") → "$0.13"`, `Decimal("0.00000000015") → "$0.00"`.
   - **`summary_table`** for an unmarked summary:
@@ -149,18 +149,18 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - a negative `piconero`;
     - a `usd` of `Decimal("NaN")`;
     - a negative `usd`.
-- [ ] T007 [P] [US1] Create golden files and `tests/integration/test_summaries_golden.py` (research R9):
+- [X] T007 [P] [US1] Create golden files and `tests/integration/test_summaries_golden.py` (research R9):
   - **`tests/golden/summaries_unmarked.txt`**: the sequential rendering (`width=None`) of `build_summaries` over synthetic records with **final prices only**. Today is 2026-10-27 in NY. Include: the US1-5 month (1.5 XMR at 150 and 0.25 XMR at 160.004 in 2026-05); a 1,234.5-XMR row at 152.345 in 2026-06 (188,069.9025); a record in 2025-03 that appears only in the annual summary; and a NY-midnight record at `2026-10-01T03:30:00Z`, which falls in September locally (2026-09-30 23:30) but October in UTC.
   - **`tests/golden/summaries_empty.txt`**: `No transactions to summarize yet.`
   - **The test**: `render_text(summaries, None, styled=False)`, compared with each file's text after stripping trailing spaces from every line on both sides (research R9).
   - **How to write them**: from contracts/summaries.md. The box-drawing layout follows the contract's example, which was produced by a rich prototype with exactly these settings; the figures are checked against the arithmetic in the contract's notes. The module docstring records this, as feature 003's `test_export_golden.py` does.
-- [ ] T008 [P] [US1] Create `tests/integration/test_summaries.py`. Reuse feature 003's pattern from `tests/integration/test_export.py`: `FakeWalletRpc`, `FakePriceSource`, and a `FakeClock` at `2026-10-27T15:00:00Z`. Use `local_tz("America/New_York")` with no `timezone` option. Cases:
+- [X] T008 [P] [US1] Create `tests/integration/test_summaries.py`. Reuse feature 003's pattern from `tests/integration/test_export.py`: `FakeWalletRpc`, `FakePriceSource`, and a `FakeClock` at `2026-10-27T15:00:00Z`. Use `local_tz("America/New_York")` with no `timezone` option. Cases:
   - **Summaries are set**: a successful `run()` returns `result.summaries`, and it equals `build_summaries(export_records(conn), date(2026, 10, 27), None)` read from the same database after the run (FR-019);
   - **Same data as the export**: the summaries' grand XMR total over the transactions in range equals the sum of the export's `xmr` column for the same transactions;
   - **No transactions**: an empty wallet gives `summaries.transactions == 0`;
   - **Failures before the export**: a sync failure, an invalid import file, and an export write failure (reports path is a file) each raise `RunError` that is **not** a `SummaryError`, with no summaries built (FR-001);
   - **Read-only**: the database's `total_changes` from the summary step is 0, and the export bytes equal what the export step wrote (FR-017).
-- [ ] T009 [P] [US1] Create `tests/integration/test_summary_failures.py` for the reading and computing stages (FR-018, research R10). Each case first runs once with the default reader to get the reference export bytes. It then runs with the injected `summary_reader` and asserts:
+- [X] T009 [P] [US1] Create `tests/integration/test_summary_failures.py` for the reading and computing stages (FR-018, research R10). Each case first runs once with the default reader to get the reference export bytes. It then runs with the injected `summary_reader` and asserts:
   - (a) `run()` raises `SummaryError`;
   - (b) `error.result.exported` is set and `error.result.summaries is None`;
   - (c) `str(error)` starts with `cannot show the income summaries: ` and contains `The export was written to <absolute export path>; recorded transactions and prices were kept.`;
@@ -172,7 +172,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
   - **Reading**: a reader raising `RuntimeError("boom")`. The reason is `unexpected RuntimeError: boom`.
   - **Computing** (unexpected data): a reader returning one record with a `Decimal("NaN")` price, one with a negative amount, and one with `price_status="final"` and no price. Each reason is the `SummaryDataError` message naming the txid.
   - **Not guarded**: a reader raising `KeyboardInterrupt`. It propagates and is not turned into a `SummaryError`.
-- [ ] T010 [P] [US1] Add CLI tests:
+- [X] T010 [P] [US1] Add CLI tests:
   - **In `tests/cli/test_cli_success.py`**: extend `FakeRun` with an optional `summaries: IncomeSummaries | None`. A `FakeRun` that sets `summaries` also sets `exported`, as `run()` does (T014 passes `exported.path` to `summary_text`). Then:
     - with summaries, stdout is features 001–003's lines, then `""`, then exactly `render_text(summaries, None, styled=False)`, with no ANSI codes (`CliRunner` isn't a terminal);
     - with `transactions == 0`, the line after `""` is `No transactions to summarize yet.`;
@@ -185,7 +185,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
 
 ### Implementation for User Story 1
 
-- [ ] T011 [US1] Complete `src/monero_income/orchestration/summary.py` (data-model.md, research R3, R4, R10):
+- [X] T011 [US1] Complete `src/monero_income/orchestration/summary.py` (data-model.md, research R3, R4, R10):
   - **`local_date(occurred_at: int, zone: ZoneInfo | None) -> date`**: `datetime.fromtimestamp(occurred_at, UTC).astimezone(zone).date()`.
   - **Labels**:
     - `week_label(d)`: `f"{iso.year}-W{iso.week:02d}"`;
@@ -212,7 +212,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - for US1, set `provisional=False, unpriced=False` everywhere (US2 fills them in);
     - the total is `exact_sum` over the periods' USD and the `int` sum of their piconero.
   - **`build_summaries(records: Sequence[ExportRecord], today: date, zone: ZoneInfo | None) -> IncomeSummaries`**: call `check_record` on every record first. Then compute each record's local date once and build the weekly, monthly and annual summaries. `transactions=len(records)`.
-- [ ] T012 [US1] Create `src/monero_income/orchestration/summary_format.py` (contracts/summaries.md, research R5, R7). It builds rich renderables and renders them only into an in-memory `Console`. Its module docstring is the contract's first paragraph.
+- [X] T012 [US1] Create `src/monero_income/orchestration/summary_format.py` (contracts/summaries.md, research R5, R7). It builds rich renderables and renders them only into an in-memory `Console`. Its module docstring is the contract's first paragraph.
   - **Constants**: `NO_TRANSACTIONS = "No transactions to summarize yet."`; `TABLE_GAP = 4`; `PROBE_WIDTH = 10_000`.
   - **`format_xmr_grouped(piconero: int) -> str`**: `whole, fraction = divmod(piconero, 10**12)`; `f"{whole:,}.{fraction:012d}"`.
   - **`format_usd(value: Decimal) -> str`**: `"$" + format(round_cents(value), ",f")`, with `round_cents` imported from `orchestration/export_format.py`.
@@ -246,7 +246,7 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - on any `Exception` (not `BaseException`), raise `SummaryError(summary_failure_message(reason, export_path), result)`, where `reason` is the `SummaryDataError` message or `f"unexpected {type(error).__name__}: {error}"`. `summary_failure_message` is imported from `summary.py` (T002).
 
   Re-export `render_text` and `summary_text` from `orchestration/__init__.py`.
-- [ ] T013 [US1] Wire the summary step into `run()` in `src/monero_income/orchestration/run.py` (contracts/run-api.md, research R1, R10):
+- [X] T013 [US1] Wire the summary step into `run()` in `src/monero_income/orchestration/run.py` (contracts/run-api.md, research R1, R10):
   - **Seam**: add the keyword-only parameter `summary_reader: Callable[[sqlite3.Connection], Sequence[ExportRecord]] = export_records`.
   - **Zone**: `zone: ZoneInfo | None = None` for now (US4 sets it from settings). Compute `today = now().astimezone(zone).date()` once.
   - **Read**: right after `rows = read_export_rows(conn)` and before `conn.close()`, with no commit in between, so both reads share the implicit transaction's snapshot:
@@ -264,14 +264,14 @@ matches its period's sum, empty periods show zero, and the totals match the peri
     - `reason` is `cannot read database {settings.db_path}: {error}` for a `StorageReadError`, the message for a `SummaryDataError`, and `unexpected {type(error).__name__}: {error}` otherwise.
   - **Scope of the catch**: these `except` clauses must not catch `KeyboardInterrupt`, and must sit outside the existing `except (StorageError, WalletError)` handler so a summary-read `StorageReadError` isn't mapped to feature 001's message.
   - **Result**: return `RunResult(..., exported=exported, summaries=summaries)`.
-- [ ] T014 [US1] Print the summaries in `src/monero_income/cli.py` `main_command` (contracts/cli.md):
+- [X] T014 [US1] Print the summaries in `src/monero_income/cli.py` `main_command` (contracts/cli.md):
   - **Catch**: `except SummaryError as error:` before `except RunError`. Print the price-stopped warning as now, then `_summary_lines(error.result)`, then `_fail(str(error), 1)`.
   - **Render first**: after a successful `run()`, `width = _terminal_width()`, then compute `text = summary_text(result, result.exported.path, width, styled=width is not None)` if `result.exported is not None`, else `text = ""`, **before printing anything**. `run()` always sets `exported` when it sets `summaries`, so the `else` branch shows no summaries rather than raising. On `SummaryError`, print the warning and `_summary_lines(result)`, then `_fail(str(error), 1)`.
   - **Print**: otherwise print the warning, the `_summary_lines(result)` lines, and, if `text`, `""` followed by `typer.echo(text, nl=False)`. The CLI never creates a rich `Console` for stdout itself, so a failure can't leave part of a table on screen.
   - **`_terminal_width() -> int | None`**: returns `None` for now (US3 fills it in).
 
   No other logic goes in the CLI.
-- [ ] T015 [US1] Run the full suite. Fix any existing test broken by `run()` now setting `RunResult.summaries`, for example a test asserting `result == RunResult(...)`, by adjusting its expectation (compare the fields it cares about, or include `summaries`). Don't disable the summary step.
+- [X] T015 [US1] Run the full suite. Fix any existing test broken by `run()` now setting `RunResult.summaries`, for example a test asserting `result == RunResult(...)`, by adjusting its expectation (compare the fields it cares about, or include `summaries`). Don't disable the summary step.
 
 **Checkpoint**: US1 works on its own. Redirected output shows the three summaries one after
 another. Every FR-018 failure prints the earlier lines and one error, and exits 1.

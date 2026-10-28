@@ -2,11 +2,12 @@
 
 import sqlite3
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 from monero_income.orchestration.errors import RunError
 from monero_income.orchestration.export import (
@@ -23,7 +24,12 @@ from monero_income.orchestration.settings import (
     default_config_path,
     resolve_settings,
 )
-from monero_income.orchestration.summary import IncomeSummaries
+from monero_income.orchestration.summary import (
+    IncomeSummaries,
+    SummaryDataError,
+    build_summaries,
+    summary_failure_message,
+)
 from monero_income.orchestration.sync import sync
 from monero_income.orchestration.valuation import default_delay
 from monero_income.primitives.config_file import read_config
@@ -42,6 +48,8 @@ from monero_income.primitives.errors import (
     WalletRpcError,
     WalletUnreachableError,
 )
+from monero_income.primitives.export_db import export_records
+from monero_income.primitives.models import ExportRecord
 from monero_income.primitives.price_source import CoinGeckoPriceSource, PriceSource
 from monero_income.primitives.wallet_rpc import HttpWalletRpc, WalletRpc
 
@@ -94,13 +102,16 @@ def run(
     connect: Callable[[Path], sqlite3.Connection] = open_database,
     clock: Callable[[], datetime] | None = None,
     sleep: Callable[[float], None] | None = None,
+    summary_reader: Callable[[sqlite3.Connection], Sequence[ExportRecord]] = export_records,
 ) -> RunResult:
-    """Run once: resolve settings, open the database, sync, import (if asked), price, then export.
+    """Run once: resolve settings, open the database, sync, import (if asked), price, export,
+    then build the income summaries.
 
     ``config_path`` defaults to ``~/.config/monero-income/config.toml``, expanded
     at call time; so are the price source, clock, and sleep defaults. Every
     expected failure is raised as ``RunError``; price-source problems don't fail
-    the run; ``KeyboardInterrupt`` propagates.
+    the run; ``KeyboardInterrupt`` propagates. A failure in the summary step comes after the
+    export is written and is raised as ``SummaryError`` (FR-018).
     """
     make_source = price_source_factory or make_price_source
     now = clock or utc_now
@@ -113,6 +124,8 @@ def run(
     settings, warnings = resolve_settings(options, raw, path)
     for warning in warnings:
         reporter.warning(warning)
+    zone: ZoneInfo | None = None  # the machine's local zone
+    today = now().astimezone(zone).date()
 
     try:
         conn = connect(settings.db_path)
@@ -145,6 +158,14 @@ def run(
             finally:
                 _close(source)
             rows = read_export_rows(conn)
+            # Same connection and no commit in between, so both reads see one snapshot
+            # (research R1). A failure here waits until the export is written (FR-018).
+            summary_records: Sequence[ExportRecord] = ()
+            summary_failure: Exception | None = None
+            try:
+                summary_records = summary_reader(conn)
+            except Exception as error:  # deliberate: the summary step is guarded
+                summary_failure = error
         finally:
             conn.close()
         # Written only once every earlier step succeeded (FR-002).
@@ -158,7 +179,32 @@ def run(
             ) from error
     except (StorageError, WalletError) as error:
         raise _run_error(error, settings) from error
-    return RunResult(recorded=recorded, imported=imported, pricing=pricing, exported=exported)
+    partial = RunResult(recorded=recorded, imported=imported, pricing=pricing, exported=exported)
+    try:
+        if summary_failure is not None:
+            raise summary_failure
+        summaries = build_summaries(summary_records, today, zone)
+    except Exception as error:  # deliberate: any failure is one clean error (research R10)
+        message = summary_failure_message(_summary_reason(error, settings), exported.path)
+        raise SummaryError(message, partial) from error
+    return RunResult(
+        recorded=recorded,
+        imported=imported,
+        pricing=pricing,
+        exported=exported,
+        summaries=summaries,
+    )
+
+
+def _summary_reason(error: Exception, settings: Settings) -> str:
+    """The reason part of the FR-018 message (research R10)."""
+    match error:
+        case StorageReadError():
+            return f"cannot read database {settings.db_path}: {error}"
+        case SummaryDataError():
+            return str(error)
+        case _:
+            return f"unexpected {type(error).__name__}: {error}"
 
 
 def _close(resource: object) -> None:
