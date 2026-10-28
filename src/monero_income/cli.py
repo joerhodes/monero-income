@@ -4,6 +4,8 @@ No behavior lives here (constitution II); everything goes through
 ``monero_income.orchestration.run``.
 """
 
+import shutil
+import sys
 from typing import Annotated, NoReturn
 
 import typer
@@ -117,7 +119,7 @@ def _print_lines(result: RunResult, reporter: StderrReporter) -> None:
 
 def _terminal_width() -> int | None:
     """The terminal's width in columns, or None when stdout is not a terminal."""
-    return None
+    return shutil.get_terminal_size().columns if sys.stdout.isatty() else None
 
 
 def _summary_lines(result: RunResult) -> list[str]:

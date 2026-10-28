@@ -23,8 +23,10 @@ from monero_income.orchestration.summary_format import (
     format_xmr_grouped,
     marks,
     render_text,
+    side_by_side_width,
     summary_renderable,
     summary_table,
+    table_width,
 )
 from monero_income.primitives.models import ExportRecord
 
@@ -271,6 +273,76 @@ def test_the_legend_is_never_wrapped() -> None:
     text = lines(render_text(marked(), None, False))
     assert PROVISIONAL_LINE in text
     assert UNPRICED_LINE in text
+
+
+# Layouts (US3, contracts/summaries.md)
+
+WIDE = 103  # the contract example's side-by-side width
+ROW_START = ("│ 20", "│ Total")
+
+
+def test_side_by_side_width_is_the_two_columns_and_the_gap() -> None:
+    shown = marked()
+    weekly, monthly, annual = (
+        table_width(summary_table(s)) for s in (shown.weekly, shown.monthly, shown.annual)
+    )
+    assert side_by_side_width(shown) == weekly + 4 + max(monthly, annual) == WIDE
+
+
+def is_side_by_side(text: list[str]) -> bool:
+    return "Weekly Summary" in text[0] and "Monthly Summary" in text[0]
+
+
+@pytest.mark.parametrize(
+    ("width", "side_by_side"),
+    [(200, True), (WIDE, True), (WIDE - 1, False), (None, False)],
+)
+def test_the_layout_follows_the_width(width: int | None, side_by_side: bool) -> None:
+    assert is_side_by_side(lines(render_text(marked(), width, False))) == side_by_side
+
+
+def test_too_narrow_is_the_same_text_as_no_terminal() -> None:
+    assert lines(render_text(marked(), WIDE - 1, False)) == lines(
+        render_text(marked(), None, False)
+    )
+
+
+def test_side_by_side_shape() -> None:
+    text = lines(render_text(marked(), WIDE, False))
+    sequential = lines(render_text(marked(), None, False))
+    left = table_width(summary_table(marked().weekly))
+    right = left + 4
+    assert text[1].startswith("╭")
+    assert text[1].index("╭", 1) == right
+    # Monthly is 19 lines (0-18); a blank line; then Annual's title, centered as on its own.
+    assert text[18][right:].startswith("╰")
+    assert text[19][left:].strip() == ""
+    annual_title = next(line for line in sequential if line.strip() == "Annual Summary")
+    assert text[20][right:] == annual_title
+    assert text[30][right:].startswith("╰")
+    # Below the right column, only the weekly table.
+    for line in text[31:33]:
+        assert len(line) <= left
+    assert text[32].startswith("╰")
+    assert text[33:] == ["", sequential[-3], sequential[-2], ""]
+
+
+@pytest.mark.parametrize("width", [WIDE, 200])
+def test_side_by_side_fits_the_width_and_40_lines(width: int) -> None:
+    text = lines(render_text(marked(), width, False))
+    assert all(len(line) <= width for line in text)
+    assert len(text) - 1 <= 40  # the text ends with a newline
+
+
+def test_both_layouts_show_the_same_rows_and_legend() -> None:
+    sequential = lines(render_text(marked(), None, False))
+    side_by_side = render_text(marked(), WIDE, False)
+    rows = [line for line in sequential if line.startswith(ROW_START)]
+    assert len(rows) == 26 + 1 + 12 + 1 + 4 + 1
+    for row in rows:
+        assert row in side_by_side
+    assert side_by_side.count("│ Total") == 3
+    assert side_by_side.rstrip().split("\n")[-2:] == sequential[-3:-1]
 
 
 # Input checks (research R10)

@@ -14,9 +14,9 @@ Today is 2026-10-27 in America/New_York, and every price is final:
 - Weekly and monthly totals: 225 + 40.001 + 188,069.9025 + 115.8635 = 188,450.767, so
   $188,450.77. Annual total: + 70 = $188,520.77.
 
-summaries_sequential.txt is the contract's one-after-another example, copied from
-contracts/summaries.md, whose notes give its arithmetic. 2026-10-20 has no price (`?`) and
-2026-10-27's price is provisional (`*`).
+summaries_sequential.txt and summaries_side_by_side.txt are the contract's two layouts of its
+example, copied from contracts/summaries.md, whose notes give their arithmetic. 2026-10-20 has
+no price (`?`) and 2026-10-27's price is provisional (`*`).
 """
 
 from datetime import UTC, date, datetime
@@ -83,3 +83,9 @@ def test_summaries_match_the_golden_file(name: str, records: list[ExportRecord])
     text = render_text(build_summaries(records, TODAY, NY), None, styled=False)
 
     assert stripped(text) == stripped((GOLDEN / name).read_text())
+
+
+def test_a_wide_terminal_matches_the_side_by_side_golden_file() -> None:
+    text = render_text(build_summaries(SEQUENTIAL, TODAY, NY), 200, styled=False)
+
+    assert stripped(text) == stripped((GOLDEN / "summaries_side_by_side.txt").read_text())

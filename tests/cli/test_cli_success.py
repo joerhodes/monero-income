@@ -1,5 +1,6 @@
 """The thin CLI: options in, one line out. run() is replaced; nothing real runs."""
 
+import sys
 from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -385,3 +386,67 @@ def test_without_summaries_the_output_is_unchanged(monkeypatch: pytest.MonkeyPat
     assert result.stdout == (
         "Recorded 1 new transaction.\nExported 1 transaction to /x/reports/xmr_income.csv.\n"
     )
+
+
+# --- feature 004, US3: the terminal's width -------------------------------------------------
+
+PRINTED = "Recorded 1 new transaction.\nExported 1 transaction to /x/reports/xmr_income.csv.\n\n"
+
+
+def run_with_width(monkeypatch: pytest.MonkeyPatch, width: int | None) -> tuple[str, str]:
+    """The CLI's stdout, and the summaries' text, with the terminal ``width`` columns wide."""
+    shown = summaries(1_234_500_000_000_000)
+    monkeypatch.setattr(
+        cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1), summaries=shown)
+    )
+    monkeypatch.setattr(cli, "_terminal_width", lambda: width)
+    # click removes ANSI codes unless the output is a terminal; color=True stands in for one.
+    result = runner.invoke(cli.app, [], color=width is not None)
+    assert result.exit_code == 0
+    assert result.stdout.startswith(PRINTED)
+    return result.stdout.removeprefix(PRINTED), render_text(shown, width, styled=width is not None)
+
+
+def test_a_wide_terminal_shows_the_summaries_side_by_side_and_styled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text, expected = run_with_width(monkeypatch, 200)
+    assert text == expected
+    first = text.split("\n")[0]
+    assert "Weekly Summary" in first
+    assert "Monthly Summary" in first
+    assert "\x1b[1m" in text
+
+
+def test_a_narrow_terminal_shows_them_one_after_another(monkeypatch: pytest.MonkeyPatch) -> None:
+    text, expected = run_with_width(monkeypatch, 60)
+    assert text == expected
+    assert "Monthly Summary" not in text.split("\n")[0]
+
+
+def test_not_a_terminal_has_no_ansi_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    text, expected = run_with_width(monkeypatch, None)
+    assert text == expected
+    assert "\x1b" not in text
+
+
+class FakeStdout:
+    def __init__(self, tty: bool) -> None:
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
+
+
+def test_terminal_width_is_none_when_stdout_is_not_a_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "stdout", FakeStdout(tty=False))
+    monkeypatch.setenv("COLUMNS", "123")
+    assert cli._terminal_width() is None
+
+
+def test_terminal_width_is_the_terminals_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "stdout", FakeStdout(tty=True))
+    monkeypatch.setenv("COLUMNS", "123")
+    assert cli._terminal_width() == 123

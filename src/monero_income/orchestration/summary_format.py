@@ -101,16 +101,40 @@ def table_width(table: Table) -> int:
     return Measurement.get(probe, probe.options, table).maximum
 
 
-def summary_renderable(summaries: IncomeSummaries, width: int | None) -> tuple[RenderableType, int]:
-    """The layout to print and the console width it needs."""
-    if summaries.transactions == 0:
-        return Text(NO_TRANSACTIONS), len(NO_TRANSACTIONS)
+def _tables(summaries: IncomeSummaries) -> tuple[Table, Table, Table]:
     weekly, monthly, annual = (
         summary_table(summary)
         for summary in (summaries.weekly, summaries.monthly, summaries.annual)
     )
-    needed = max(table_width(table) for table in (weekly, monthly, annual))
-    layout: list[RenderableType] = [weekly, Text(""), monthly, Text(""), annual]
+    return weekly, monthly, annual
+
+
+def _side_by_side_width(weekly: Table, monthly: Table, annual: Table) -> int:
+    return table_width(weekly) + TABLE_GAP + max(table_width(monthly), table_width(annual))
+
+
+def side_by_side_width(summaries: IncomeSummaries) -> int:
+    """The narrowest terminal that shows the summaries side by side (W in the contract)."""
+    return _side_by_side_width(*_tables(summaries))
+
+
+def summary_renderable(summaries: IncomeSummaries, width: int | None) -> tuple[RenderableType, int]:
+    """The layout to print and the console width it needs."""
+    if summaries.transactions == 0:
+        return Text(NO_TRANSACTIONS), len(NO_TRANSACTIONS)
+    weekly, monthly, annual = _tables(summaries)
+    wide = _side_by_side_width(weekly, monthly, annual)
+    layout: list[RenderableType]
+    if width is not None and width >= wide:
+        # Weekly on the left; monthly above annual on the right (research R7).
+        grid = Table.grid(padding=(0, TABLE_GAP, 0, 0))
+        grid.add_column()
+        grid.add_column()
+        grid.add_row(weekly, Group(monthly, Text(""), annual))
+        layout, needed = [grid], wide
+    else:
+        layout = [weekly, Text(""), monthly, Text(""), annual]
+        needed = max(table_width(table) for table in (weekly, monthly, annual))
     legend = _legend(summaries)
     if legend:
         layout.append(Text(""))

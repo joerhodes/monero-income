@@ -327,7 +327,7 @@ figures.
 
 ### Tests for User Story 3 ⚠️ (write first, confirm they fail)
 
-- [ ] T021 [P] [US3] Add to `tests/unit/test_summary_format.py`:
+- [X] T021 [P] [US3] Add to `tests/unit/test_summary_format.py`:
   - **Threshold**: `side_by_side_width(summaries) == table_width(weekly) + 4 + max(table_width(monthly), table_width(annual))`. `render_text` at that width is side by side, and at width − 1 it is one after another (US3-1, US3-2). For the contract example the width is 103.
   - **`width=None`** is always one after another (US3-3).
   - **Side-by-side shape**:
@@ -336,21 +336,21 @@ figures.
     - lines after the right side ends hold only the weekly table.
   - **Line limits**: no line, with trailing spaces stripped, is longer than the width given (US3-4). The side-by-side output is at most 40 lines (SC-006).
   - **Same content**: every period row's text (`│ label │ xmr │ usd │`) and the legend appear identically in both layouts (US3-5, FR-015).
-- [ ] T022 [P] [US3] Add `tests/golden/summaries_side_by_side.txt` with the contract's side-by-side example, copied from contracts/summaries.md. Add a test to `tests/integration/test_summaries_golden.py` rendering the example records with `render_text(..., 200, styled=False)` and comparing with trailing spaces stripped per line.
-- [ ] T023 [P] [US3] Add to `tests/cli/test_cli_success.py`:
+- [X] T022 [P] [US3] Add `tests/golden/summaries_side_by_side.txt` with the contract's side-by-side example, copied from contracts/summaries.md. Add a test to `tests/integration/test_summaries_golden.py` rendering the example records with `render_text(..., 200, styled=False)` and comparing with trailing spaces stripped per line.
+- [X] T023 [P] [US3] Add to `tests/cli/test_cli_success.py`:
   - **Wide terminal**: with `cli._terminal_width` monkeypatched to return 200, stdout after `""` equals `render_text(summaries, 200, styled=True)`, so it is side by side with ANSI bold headers;
   - **Narrow terminal**: with it returning 60, stdout equals `render_text(summaries, 60, styled=True)`, which is one after another;
   - **Not a terminal**: with it returning `None`, there are no ANSI codes;
   - **`_terminal_width` itself**: with `sys.stdout.isatty` patched to `False` it returns `None`; with it patched to `True` and `COLUMNS=123`, it returns `123`.
 ### Implementation for User Story 3
 
-- [ ] T024 [US3] In `src/monero_income/orchestration/summary_format.py`:
+- [X] T024 [US3] In `src/monero_income/orchestration/summary_format.py`:
   - add `side_by_side_width(summaries) -> int`;
   - in `summary_renderable`, when `width is not None and width >= side_by_side_width(...)`, build the side-by-side layout:
     - `grid = Table.grid(padding=(0, TABLE_GAP, 0, 0))` with two columns;
     - `grid.add_row(weekly, Group(monthly, Text(""), annual))`;
     - return `(grid, side_by_side_width)`, with the legend appended as in T020 (research R7).
-- [ ] T025 [US3] In `src/monero_income/cli.py`, implement `_terminal_width()`: `shutil.get_terminal_size().columns if sys.stdout.isatty() else None` (research R7). This is presentation only.
+- [X] T025 [US3] In `src/monero_income/cli.py`, implement `_terminal_width()`: `shutil.get_terminal_size().columns if sys.stdout.isatty() else None` (research R7). This is presentation only.
 
 **Checkpoint**: All three golden files pass; a wide terminal shows the side-by-side layout.
 
