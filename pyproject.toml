@@ -1,6 +1,6 @@
 [project]
 name = "monero-income"
-version = "0.1.0"
+version = "0.3.0"
 description = "Weekly and monthly income reports from a Monero wallet, valued at historical USD prices"
 readme = "README.md"
 license = "MIT"

@@ -1,3 +1,30 @@
+<!--
+Sync Impact Report
+- Version: 1.2.0 → 1.3.0 (MINOR: materially expands the Development Workflow guidance)
+- Modified sections:
+  - Development Workflow: the full workflow is now required for new behavior. Bug fixes and
+    small changes that add no new behavior, including cosmetic output changes, may skip the
+    spec, clarify, plan, tasks, and analyze steps, provided the same change updates any
+    affected spec, plan, or contract text and golden files, and all automated gates pass.
+  - Development Workflow, golden-file rule: a report-output change is now stated in the
+    affected spec or contract text, so the rule agrees with the new exception. Golden files
+    must still be updated in the same change.
+- Added sections: none
+- Removed sections: none
+- Rationale: running six workflow steps for a bug fix or a cosmetic change costs more than
+  it catches. Requiring the specs, contracts, and golden files to be updated in the same
+  change keeps them accurate, and the automated gates still apply to every change.
+- Migration impact: none. Existing specs, plans, and code already comply; features 001-004
+  went through the full workflow.
+- Templates and docs:
+  - ✅ .specify/templates/plan-template.md: no change needed (its Constitution Check is
+    generic)
+  - ✅ .specify/templates/spec-template.md: no change needed
+  - ✅ .specify/templates/tasks-template.md: no change needed
+  - ✅ CLAUDE.md: no change needed (its golden-file rule is consistent)
+  - ✅ README.md: no change needed (it doesn't restate the workflow)
+- Follow-up TODOs: none
+-->
 
 # monero-income Constitution
 
@@ -99,9 +126,16 @@ and keeping configuration in one place prevents drift.
 
 ## Development Workflow
 
-- Features MUST progress through spec → clarify → plan → tasks → analyze → implement.
+- New behavior MUST progress through spec → clarify → plan → tasks → analyze → implement.
+- Bug fixes and small changes that add no new behavior, including cosmetic changes to
+  output, MAY skip the spec, clarify, plan, tasks, and analyze steps, provided that:
+  - the same change updates any affected spec, plan, or contract text, and any affected
+    golden files; and
+  - all automated gates (Principle VII) pass.
 - Report output is locked by golden-file tests. Any change to report output MUST be stated
-  in a spec, and the affected golden files MUST be updated in the same change.
+  in the affected spec or contract text: in a new spec for new behavior, or by updating the
+  existing text for a change under the exception above. The affected golden files MUST be
+  updated in the same change.
 
 ## Governance
 
@@ -118,4 +152,4 @@ without a prior amendment.
   MUST be reviewed for compliance before merge. The automated gates in Principle VII are the
   minimum check, not the whole check.
 
-**Version**: 1.2.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-15
+**Version**: 1.3.0 | **Ratified**: 2026-10-11 | **Last Amended**: 2026-10-29
