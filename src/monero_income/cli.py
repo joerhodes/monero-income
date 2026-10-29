@@ -4,11 +4,20 @@ No behavior lives here (constitution II); everything goes through
 ``monero_income.orchestration.run``.
 """
 
+import shutil
+import sys
 from typing import Annotated, NoReturn
 
 import typer
 
-from monero_income.orchestration import CliOptions, RunError, RunResult, run
+from monero_income.orchestration import (
+    CliOptions,
+    RunError,
+    RunResult,
+    SummaryError,
+    run,
+    summary_text,
+)
 
 app = typer.Typer(
     add_completion=False,
@@ -41,6 +50,14 @@ def main_command(
             "--reports-path", help="Directory for the xmr_income.csv export (default ~/reports)."
         ),
     ] = None,
+    timezone: Annotated[
+        str | None,
+        typer.Option(
+            "--timezone",
+            help="Time zone for the income summaries, e.g. America/New_York"
+            " (default: this machine's).",
+        ),
+    ] = None,
     import_prices: Annotated[
         str | None,
         typer.Option(
@@ -66,6 +83,7 @@ def main_command(
         username=username,
         db_path=db_path,
         reports_path=reports_path,
+        timezone=timezone,
         import_prices=import_prices,
         coingecko_api_key=coingecko_api_key,
         coingecko_api_key_type=coingecko_api_key_type,
@@ -73,17 +91,44 @@ def main_command(
     reporter = StderrReporter()
     try:
         result = run(options, reporter)
+    except SummaryError as error:
+        # The export was written; show what the run did, then the error (FR-018).
+        _print_lines(error.result, reporter)
+        _fail(str(error), 1)
     except RunError as error:
         _fail(str(error), 1)
     except KeyboardInterrupt:
         _fail("interrupted; anything already recorded was kept", 130)
     except Exception as error:
         _fail(f"unexpected {type(error).__name__}: {error}", 1)
+    # Rendered in full before anything is printed, so no partial summary can appear.
+    width = _terminal_width()
+    try:
+        text = (
+            summary_text(result, result.exported.path, width, styled=width is not None)
+            if result.exported is not None
+            else ""
+        )
+    except SummaryError as error:
+        _print_lines(result, reporter)
+        _fail(str(error), 1)
+    _print_lines(result, reporter)
+    if text:
+        typer.echo("")
+        typer.echo(text, nl=False)
+
+
+def _print_lines(result: RunResult, reporter: StderrReporter) -> None:
     if result.pricing.stopped is not None:
         # A price-source problem: warn and carry on; the run still succeeds (FR-009).
         reporter.warning(f"price lookups stopped: {result.pricing.stopped.reason}")
     for line in _summary_lines(result):
         typer.echo(line)
+
+
+def _terminal_width() -> int | None:
+    """The terminal's width in columns, or None when stdout is not a terminal."""
+    return shutil.get_terminal_size().columns if sys.stdout.isatty() else None
 
 
 def _summary_lines(result: RunResult) -> list[str]:

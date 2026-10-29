@@ -310,3 +310,40 @@ def test_reports_path_is_a_known_key() -> None:
     _, warnings = resolve_settings(CliOptions(), raw(reports_path="/srv/reports"), CONFIG)
 
     assert warnings == []
+
+
+# --- feature 004: timezone (contracts/config.md) ---------------------------------------------
+
+
+def test_timezone_defaults_to_none() -> None:
+    assert resolve().timezone is None
+
+
+def test_timezone_from_the_file() -> None:
+    assert resolve(file=raw(timezone="America/New_York")).timezone == "America/New_York"
+
+
+def test_timezone_option_overrides_the_file() -> None:
+    settings = resolve(CliOptions(timezone="UTC"), raw(timezone="America/New_York"))
+    assert settings.timezone == "UTC"
+
+
+@pytest.mark.parametrize("value", ["", "  "])
+def test_empty_timezone_is_invalid_not_the_default(value: str) -> None:
+    for options, file in ((CliOptions(timezone=value), None), (None, raw(timezone=value))):
+        with pytest.raises(RunError) as excinfo:
+            resolve(options, file)
+        assert str(excinfo.value) == "invalid timezone: must not be empty"
+
+
+def test_timezone_with_wrong_type_names_the_config_file() -> None:
+    with pytest.raises(RunError) as excinfo:
+        resolve(file=raw(timezone=5))
+
+    assert str(excinfo.value) == f"invalid timezone in {CONFIG}: expected a string"
+
+
+def test_timezone_is_a_known_key() -> None:
+    _, warnings = resolve_settings(CliOptions(), raw(timezone="UTC"), CONFIG)
+
+    assert warnings == []

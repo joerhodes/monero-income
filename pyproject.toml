@@ -1,6 +1,6 @@
 [project]
 name = "monero-income"
-version = "0.1.0"
+version = "0.3.0"
 description = "Weekly and monthly income reports from a Monero wallet, valued at historical USD prices"
 readme = "README.md"
 license = "MIT"
@@ -8,6 +8,7 @@ license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "httpx>=0.28.1",
+    "rich>=15.0.0",
     "typer>=0.27.3",
 ]
 

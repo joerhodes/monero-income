@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-17
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "monero-income records a Monero wallet's incoming transactions
 locally (feature 001). This feature values each recorded transaction in USD. CSV output and

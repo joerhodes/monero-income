@@ -1,10 +1,25 @@
 """The CLI turns every failure into one 'Error:' line and an exit code; never a traceback."""
 
+import dataclasses
+from datetime import date
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
 import pytest
 from typer.testing import CliRunner
 
 from monero_income import cli
-from monero_income.orchestration import CliOptions, Reporter, RunError, RunResult
+from monero_income.orchestration import (
+    CliOptions,
+    ExportSummary,
+    IncomeSummaries,
+    Reporter,
+    RunError,
+    RunResult,
+    SummaryError,
+    summary_format,
+)
+from monero_income.orchestration.summary import build_summaries
 
 runner = CliRunner()
 
@@ -71,3 +86,72 @@ def test_export_write_failure_prints_only_the_error(monkeypatch: pytest.MonkeyPa
     assert result.exit_code == 1
     assert result.stderr == f"Error: {message}\n"
     assert result.stdout == ""  # no sync or pricing lines on failure
+
+
+EXPORT_PATH = Path("/x/reports/xmr_income.csv")
+EARLIER_LINES = (
+    "Recorded 2 new transactions.\nExported 2 transactions to /x/reports/xmr_income.csv.\n"
+)
+
+
+def returning(result: RunResult) -> object:
+    def fake_run(options: CliOptions, reporter: Reporter) -> RunResult:
+        return result
+
+    return fake_run
+
+
+def summaries() -> IncomeSummaries:
+    return build_summaries([], date(2026, 10, 27), ZoneInfo("America/New_York"))
+
+
+def test_a_summary_error_from_run_prints_the_earlier_lines(monkeypatch: pytest.MonkeyPatch) -> None:
+    message = "cannot show the income summaries: unexpected RuntimeError: boom. The export ..."
+    partial = RunResult(recorded=2, exported=ExportSummary(EXPORT_PATH, 2))
+    monkeypatch.setattr(cli, "run", raising(SummaryError(message, partial)))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 1
+    assert result.stdout == EARLIER_LINES
+    assert result.stderr == f"Error: {message}\n"
+    assert "Traceback" not in result.output
+
+
+def test_a_malformed_summary_fails_cleanly_when_rendered(monkeypatch: pytest.MonkeyPatch) -> None:
+    good = summaries()
+    weekly = dataclasses.replace(good.weekly, periods=good.weekly.periods[:25])
+    broken = dataclasses.replace(good, weekly=weekly, transactions=2)
+    result_of_run = RunResult(recorded=2, exported=ExportSummary(EXPORT_PATH, 2), summaries=broken)
+    monkeypatch.setattr(cli, "run", returning(result_of_run))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 1
+    assert result.stdout == EARLIER_LINES
+    assert result.stderr.startswith("Error: cannot show the income summaries: unexpected data")
+    assert result.stderr.endswith(
+        f"The export was written to {EXPORT_PATH}; recorded transactions and prices were kept.\n"
+    )
+    assert "Traceback" not in result.output
+
+
+def test_a_renderer_crash_fails_cleanly(monkeypatch: pytest.MonkeyPatch) -> None:
+    def crashing_render(*args: object) -> str:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(summary_format, "render_text", crashing_render)
+    result_of_run = RunResult(
+        recorded=2, exported=ExportSummary(EXPORT_PATH, 2), summaries=summaries()
+    )
+    monkeypatch.setattr(cli, "run", returning(result_of_run))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 1
+    assert result.stdout == EARLIER_LINES
+    assert result.stderr == (
+        "Error: cannot show the income summaries: unexpected RuntimeError: boom."
+        f" The export was written to {EXPORT_PATH}; recorded transactions and prices were kept.\n"
+    )
+    assert "Traceback" not in result.output

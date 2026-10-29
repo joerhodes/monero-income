@@ -1,6 +1,10 @@
 """The thin CLI: options in, one line out. run() is replaced; nothing real runs."""
 
+import sys
+from datetime import UTC, date, datetime
+from decimal import Decimal
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from typer.testing import CliRunner
@@ -10,11 +14,15 @@ from monero_income.orchestration import (
     CliOptions,
     ExportSummary,
     ImportSummary,
+    IncomeSummaries,
     PricingSummary,
     Reporter,
     RunResult,
     StopReason,
+    render_text,
 )
+from monero_income.orchestration.summary import build_summaries
+from monero_income.primitives.models import ExportRecord
 
 runner = CliRunner()
 
@@ -26,11 +34,13 @@ class FakeRun:
         pricing: PricingSummary | None = None,
         imported: ImportSummary | None = None,
         exported: ExportSummary | None = None,
+        summaries: IncomeSummaries | None = None,
     ) -> None:
         self.recorded = recorded
         self.pricing = pricing or PricingSummary()
         self.imported = imported
         self.exported = exported
+        self.summaries = summaries  # set together with exported, as run() does
         self.options: list[CliOptions] = []
 
     def __call__(self, options: CliOptions, reporter: Reporter) -> RunResult:
@@ -40,6 +50,7 @@ class FakeRun:
             imported=self.imported,
             pricing=self.pricing,
             exported=self.exported,
+            summaries=self.summaries,
         )
 
 
@@ -72,6 +83,8 @@ def test_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch, tmp_path:
             db_path,
             "--reports-path",
             "/x/y",
+            "--timezone",
+            "Europe/Berlin",
         ],
     )
 
@@ -82,6 +95,7 @@ def test_options_map_onto_cli_options(monkeypatch: pytest.MonkeyPatch, tmp_path:
             username="monero",
             db_path=db_path,
             reports_path="/x/y",
+            timezone="Europe/Berlin",
         )
     ]
 
@@ -93,6 +107,7 @@ def test_no_options_means_all_none(monkeypatch: pytest.MonkeyPatch) -> None:
     runner.invoke(cli.app, [])
 
     assert fake.options == [CliOptions()]
+    assert fake.options[0].timezone is None
 
 
 def test_help_has_no_password_option_and_no_subcommands() -> None:
@@ -327,3 +342,115 @@ def test_no_export_line_without_an_export(monkeypatch: pytest.MonkeyPatch) -> No
     result = runner.invoke(cli.app, [])
 
     assert result.stdout == "Recorded 1 new transaction.\n"
+
+
+def summaries(*amounts: int) -> IncomeSummaries:
+    moment = int(datetime(2026, 6, 10, 12, tzinfo=UTC).timestamp())
+    records = [
+        ExportRecord(f"tx-{n}", n, amount, moment, Decimal("152.345"), "final")
+        for n, amount in enumerate(amounts)
+    ]
+    return build_summaries(records, date(2026, 10, 27), ZoneInfo("America/New_York"))
+
+
+def test_summaries_follow_the_export_line_after_a_blank_line(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    shown = summaries(1_234_500_000_000_000)
+    monkeypatch.setattr(
+        cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1), summaries=shown)
+    )
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.exit_code == 0
+    assert result.stdout == (
+        "Recorded 1 new transaction.\n"
+        "Exported 1 transaction to /x/reports/xmr_income.csv.\n"
+        "\n" + render_text(shown, None, styled=False)
+    )
+    assert "\x1b" not in result.stdout
+
+
+def test_no_transactions_prints_the_message(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        cli, "run", FakeRun(0, exported=ExportSummary(EXPORT_PATH, 0), summaries=summaries())
+    )
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout.splitlines()[-2:] == ["", "No transactions to summarize yet."]
+
+
+def test_without_summaries_the_output_is_unchanged(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1)))
+
+    result = runner.invoke(cli.app, [])
+
+    assert result.stdout == (
+        "Recorded 1 new transaction.\nExported 1 transaction to /x/reports/xmr_income.csv.\n"
+    )
+
+
+# --- feature 004, US3: the terminal's width -------------------------------------------------
+
+PRINTED = "Recorded 1 new transaction.\nExported 1 transaction to /x/reports/xmr_income.csv.\n\n"
+
+
+def run_with_width(monkeypatch: pytest.MonkeyPatch, width: int | None) -> tuple[str, str]:
+    """The CLI's stdout, and the summaries' text, with the terminal ``width`` columns wide."""
+    shown = summaries(1_234_500_000_000_000)
+    monkeypatch.setattr(
+        cli, "run", FakeRun(1, exported=ExportSummary(EXPORT_PATH, 1), summaries=shown)
+    )
+    monkeypatch.setattr(cli, "_terminal_width", lambda: width)
+    # click removes ANSI codes unless the output is a terminal; color=True stands in for one.
+    result = runner.invoke(cli.app, [], color=width is not None)
+    assert result.exit_code == 0
+    assert result.stdout.startswith(PRINTED)
+    return result.stdout.removeprefix(PRINTED), render_text(shown, width, styled=width is not None)
+
+
+def test_a_wide_terminal_shows_the_summaries_side_by_side_and_styled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text, expected = run_with_width(monkeypatch, 200)
+    assert text == expected
+    first = text.split("\n")[0]
+    assert "Weekly Summary" in first
+    assert "Monthly Summary" in first
+    assert "\x1b[1m" in text
+
+
+def test_a_narrow_terminal_shows_them_one_after_another(monkeypatch: pytest.MonkeyPatch) -> None:
+    text, expected = run_with_width(monkeypatch, 60)
+    assert text == expected
+    assert "Monthly Summary" not in text.split("\n")[0]
+
+
+def test_not_a_terminal_has_no_ansi_codes(monkeypatch: pytest.MonkeyPatch) -> None:
+    text, expected = run_with_width(monkeypatch, None)
+    assert text == expected
+    assert "\x1b" not in text
+
+
+class FakeStdout:
+    def __init__(self, tty: bool) -> None:
+        self.tty = tty
+
+    def isatty(self) -> bool:
+        return self.tty
+
+
+def test_terminal_width_is_none_when_stdout_is_not_a_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(sys, "stdout", FakeStdout(tty=False))
+    monkeypatch.setenv("COLUMNS", "123")
+    assert cli._terminal_width() is None
+
+
+def test_terminal_width_is_the_terminals_columns(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(sys, "stdout", FakeStdout(tty=True))
+    monkeypatch.setenv("COLUMNS", "123")
+    assert cli._terminal_width() == 123

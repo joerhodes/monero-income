@@ -10,6 +10,8 @@ CoinGecko or wait in real time.
 """
 
 import importlib
+import time
+from collections.abc import Callable, Iterator
 from pathlib import Path
 
 import pytest
@@ -39,3 +41,20 @@ def offline_price_source(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(run_module, "make_price_source", empty_price_source)
     monkeypatch.setattr(run_module, "_sleep", no_sleep)
+
+
+@pytest.fixture
+def local_tz() -> Iterator[Callable[[str], None]]:
+    """Set the process's local time zone for one test (research R2).
+
+    Its own MonkeyPatch restores TZ before the final tzset(), so later tests see the
+    original zone again.
+    """
+    with pytest.MonkeyPatch.context() as patch:
+
+        def set_tz(name: str) -> None:
+            patch.setenv("TZ", name)
+            time.tzset()
+
+        yield set_tz
+    time.tzset()
