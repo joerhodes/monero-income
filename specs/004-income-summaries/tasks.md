@@ -417,7 +417,7 @@ counts in 2026-10; with the file still set and `--timezone UTC`, it counts in 20
 
   Don't change the Intro or "How I used AI" sections.
 - [X] T037 Run all five gates and fix failures until they pass with coverage ≥ 90%.
-- [ ] T038 Run the manual checks in `specs/004-income-summaries/quickstart.md` against the real wallet and record the results in the PR description. Don't commit any output, database, or config file.
+- [X] T038 Run the manual checks in `specs/004-income-summaries/quickstart.md` against the real wallet and record the results in the PR description. Don't commit any output, database, or config file.
 
 ---
 
