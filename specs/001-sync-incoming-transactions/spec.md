@@ -4,7 +4,7 @@
 
 **Created**: 2026-10-12
 
-**Status**: Draft
+**Status**: Implemented
 
 **Input**: User description: "monero-income is a command-line tool that records a Monero
 wallet's incoming transactions locally, so they can later be valued in USD and
