@@ -1,0 +1,17 @@
+name: ci
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: docker
+    env:
+      UV_VERSION: "0.11.19"
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        run: |
+          curl -LsSf "https://astral.sh/uv/${UV_VERSION}/install.sh" | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: uv --version
+      - run: uv sync --locked
+      - run: uv run pytest
