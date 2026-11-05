@@ -14,4 +14,17 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: uv --version
       - run: uv sync --locked
-      - run: uv run pytest
+      - name: ruff check
+        run: uv run ruff check
+      - name: ruff format
+        if: success() || failure()
+        run: uv run ruff format --check
+      - name: mypy
+        if: success() || failure()
+        run: uv run mypy
+      - name: import contracts
+        if: success() || failure()
+        run: uv run lint-imports
+      - name: pytest
+        if: success() || failure()
+        run: uv run pytest
