@@ -7,6 +7,7 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from monero_income import cli
@@ -111,12 +112,12 @@ def test_no_options_means_all_none(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_help_has_no_password_option_and_no_subcommands() -> None:
-    result = runner.invoke(cli.app, ["--help"])
+    result = runner.invoke(cli.app, ["--help"], env={"COLUMNS": "120"})
 
     assert result.exit_code == 0
-    assert "--rpc-url" in result.stdout
-    assert "--password" not in result.stdout
-    assert "Commands" not in result.stdout
+    assert "--rpc-url" in unstyle(result.stdout)
+    assert "--password" not in unstyle(result.stdout)
+    assert "Commands" not in unstyle(result.stdout)
 
 
 def test_nothing_new_prints_no_new_transactions(monkeypatch: pytest.MonkeyPatch) -> None:
