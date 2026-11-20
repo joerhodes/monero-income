@@ -1,0 +1,44 @@
+name: release
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  version:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag matches pyproject version
+        run: |
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match pyproject.toml version ${version}"
+            exit 1
+          fi
+
+  checks:
+    needs: version
+    uses: ./.forgejo/workflows/ci.yml
+
+  deploy:
+    needs: checks
+    runs-on: docker
+    steps:
+      - name: Ensure an SSH client
+        run: command -v ssh || (apt-get update && apt-get install -y --no-install-recommends openssh-client)
+      - name: Deploy the tag
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_KNOWN_HOSTS: ${{ vars.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/deploy_known_hosts
+          ssh -i ~/.ssh/deploy_key \
+            -o IdentitiesOnly=yes \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/deploy_known_hosts \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" "${GITHUB_REF_NAME}"
